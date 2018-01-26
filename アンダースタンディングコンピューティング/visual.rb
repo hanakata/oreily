@@ -14,6 +14,10 @@ class Number < Struct.new(:value)
     def evaluate(environment)
         self
 		end
+		
+		def to_ruby
+			"-> e { #{value.inspect}}"
+		end
 end
 
 class Boolean < Struct.new(:value)
@@ -31,6 +35,10 @@ class Boolean < Struct.new(:value)
 
     def evaluate(environment)
         self
+		end
+		
+		def to_ruby
+			"-> e { #{value.inspect}}"
 		end
 end
 
@@ -53,6 +61,10 @@ class Variable < Struct.new(:name)
 
     def evaluate(environment)
         environment[name]
+    end
+
+    def to_ruby
+        "-> e { e[#{name.inspect}] }"
     end
 end
 
@@ -82,6 +94,10 @@ class Add < Struct.new(:left, :right)
     def evaluate(environment)
         Number.new(left.evaluate(environment).value + right.evaluate(environment).value)
     end
+
+    def to_ruby
+        "-> e { (#{left.to_ruby}).call(e) + (#{right.to_ruby}).call(e) }"
+    end
 end
 
 class Multiply < Struct.new(:left, :right)
@@ -110,6 +126,10 @@ class Multiply < Struct.new(:left, :right)
     def evaluate(environment)
         Number.new(left.evaluate(environment).value * right.evaluate(environment).value)
     end
+
+    def to_ruby
+        "-> e { (#{left.to_ruby}).call(e) * (#{right.to_ruby}).call(e) }"
+    end
 end
 
 class LessThan < Struct.new(:left, :right)
@@ -137,6 +157,10 @@ class LessThan < Struct.new(:left, :right)
 
     def evaluate(environment)
         Boolean.new(left.evaluate(environment).value < right.evaluate(environment).value)
+    end
+
+    def to_ruby
+        "-> e { (#{left.to_ruby}).call(e) < (#{right.to_ruby}).call(e) }"
     end
 end
 
@@ -286,5 +310,9 @@ end
 
 # statement = Sequence.new(Assign.new(:x, Add.new(Number.new(1),Number.new(1))),Assign.new(:y, Add.new(Variable.new(:x), Number.new(3))))
 # statement.evaluate({})
-statement = While.new(LessThan.new(Variable.new(:x), Number.new(5)), Assign.new(:x,Multiply.new(Variable.new(:x),Number.new(3))))
-statement.evaluate({x: Number.new(1)})
+# statement = While.new(LessThan.new(Variable.new(:x), Number.new(5)), Assign.new(:x,Multiply.new(Variable.new(:x),Number.new(3))))
+# statement.evaluate({x: Number.new(1)})
+# Add.new(Variable.new(:x), Number.new(1)).to_ruby
+# LessThan.new(Add.new(Variable.new(:x), Number.new(1)), Number.new(3)).to_ruby
+# proc = eval(LessThan.new(Add.new(Variable.new(:x),Number.new(1)),Number.new(3)).to_ruby)
+# proc.call(environment)
