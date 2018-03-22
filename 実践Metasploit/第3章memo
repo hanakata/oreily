@@ -1,0 +1,150 @@
+第3章 インテリジェンスギャザリング
+インテリジェンスギャザリングとは契約前のやり取りのあとに行われるもので
+相手に知られることなくターゲットについての正確な情報を取得し相手がどのように運用しているかを知り
+最も進入しやすいルートを判断すること。
+ここでしっかりしておかないと脆弱なシステムや実行可能な攻撃ベクターを見逃すこともあるので注意。
+
+最も重要なことは攻撃者と同じ思考する能力。
+環境について膨大な量の情報を得ることになるが正確な情報を得ること。
+情報としてまとめるのであれば他人が見て同じことを辿れるほどの再現性が必要。
+
+受動的で間接的なインテリジェンスギャザリングによってシステムに触れることなく
+ターゲットに関する情報を見つけることが出来る。
+・オープンソースインテリジェンス
+オープン、または簡単に入手可能な情報を用いて
+ターゲットに関する情報をみつけ選別し情報収集を行う手法
+
+例としてhttp://www.secmaniac.netを攻撃することを想定
+→だめだったのでhttp://www.google.co.jp
+msfconsoleを開いてwhoisが可能っぽい。
+ただ環境が外に出ない状態のものなので割愛。
+DNSサーバが見えるはずなのでそこにホストされていることが分かる。
+ただこれは攻撃する許可を得ていない。
+大企業の場合、DNSサーバは社内でホストされており利用可能な攻撃ベクターとなる。
+ゾーン転送及び同様のDNS攻撃はネットワークの内側と外側両方を知るのに利用できる。
+
+・Netcraft
+http://searchdns.netcraft.com
+特定のWebサイトをホストしているサーバのIPアドレスを見つけるのに利用できるWebサイト。
+
+サイトのIPを見つけたら再度whoisでそのIPアドレスを検索してみる。
+whois検索とクイック検索を利用してIPが正当なサービスプロバイダのものか確認。
+サブネット範囲を調べて家庭内のサーバなのか企業のサーバなのか調べる。
+
+・nslookup
+つぎにnslookupを利用して情報を集める。
+→正直Linuxならdigの方が良い気がする。
+この結果を得ることでメールサーバがどこかが分かるので調査し範囲外か確認する。
+後は実際のターゲットIPの情報を見つけ出す。
+※細かい内容はPTESを確認すること
+
+・能動的なインテリジェンスギャザリング
+あとはターゲットホストで開いているポートがあるかのポートスキャン
+サービスが稼動しているか確認するスキャンを実施する。
+ただしIPS/IDSに見つからないようにする。
+
+・Nmapでのポートスキャン
+NmapはMetasploitでとの統合が上手くいっておりスキャン結果を後で使えたりする。
+Nmapは非常にオプションが多いがおすすめは以下2つ。
+・-sS
+→TCPステルススキャン。
+・-Pn
+→すべてのホストが生存している前提で進める。（pingを打たない。今どきping返さない方が多いので）
+こんな結果が出力される。
+root@kali:/usr/share/metasploit-framework/tools/exploit# nmap -sS -Pn 10.61.7.21
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-03-23 17:34 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00013s latency).
+Not shown: 996 closed ports
+PORT     STATE SERVICE
+135/tcp  open  msrpc
+139/tcp  open  netbios-ssn
+445/tcp  open  microsoft-ds
+3389/tcp open  ms-wbt-server
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 5.92 seconds
+root@kali:/usr/share/metasploit-framework/tools/exploit#
+詳細な情報が欲しいときは-Aをつける。
+つけるとバナー取得を試みより詳細な情報を取得できる。
+root@kali:/usr/share/metasploit-framework/tools/exploit# nmap -sS -Pn -A 10.61.7.21
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-03-23 17:35 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00019s latency).
+Not shown: 996 closed ports
+PORT     STATE SERVICE       VERSION
+135/tcp  open  msrpc         Microsoft Windows RPC
+139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+445/tcp  open  microsoft-ds?
+3389/tcp open  ms-wbt-server Microsoft Terminal Services
+| ssl-cert: Subject: commonName=DESKTOP-RS9VLQ2
+| Not valid before: 2018-03-11T15:12:01
+|_Not valid after:  2018-09-10T15:12:01
+|_ssl-date: 2018-03-23T08:35:56+00:00; +1s from scanner time.
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+No exact OS matches for host (If you know what OS is running on it, see https://nmap.org/submit/ ).
+TCP/IP fingerprint:
+OS:SCAN(V=7.60%E=4%D=3/23%OT=135%CT=1%CU=37120%PV=Y%DS=1%DC=D%G=Y%M=000C29%
+OS:TM=5AB4BC71%P=x86_64-pc-linux-gnu)SEQ(SP=106%GCD=2%ISR=10A%TI=I%CI=I%II=
+OS:I%SS=S%TS=U)OPS(O1=M5B4NW8NNS%O2=M5B4NW8NNS%O3=M5B4NW8%O4=M5B4NW8NNS%O5=
+OS:M5B4NW8NNS%O6=M5B4NNS)WIN(W1=FFFF%W2=FFFF%W3=FFFF%W4=FFFF%W5=FFFF%W6=FF7
+OS:0)ECN(R=Y%DF=Y%T=80%W=FFFF%O=M5B4NW8NNS%CC=N%Q=)T1(R=Y%DF=Y%T=80%S=O%A=S
+OS:+%F=AS%RD=0%Q=)T2(R=Y%DF=Y%T=80%W=0%S=Z%A=S%F=AR%O=%RD=0%Q=)T3(R=Y%DF=Y%
+OS:T=80%W=0%S=Z%A=O%F=AR%O=%RD=0%Q=)T4(R=Y%DF=Y%T=80%W=0%S=A%A=O%F=R%O=%RD=
+OS:0%Q=)T5(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)T6(R=Y%DF=Y%T=80%W=0%
+OS:S=A%A=O%F=R%O=%RD=0%Q=)T7(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)U1(
+OS:R=Y%DF=N%T=80%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%RUD=G)IE(R=Y%DFI=
+OS:N%T=80%CD=Z)
+
+Network Distance: 1 hop
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_nbstat: NetBIOS name: DESKTOP-RS9VLQ2, NetBIOS user: <unknown>, NetBIOS MAC: 00:0c:29:cc:d4:e2 (VMware)
+| smb2-security-mode:
+|   2.02:
+|_    Message signing enabled but not required
+| smb2-time:
+|   date: 2018-03-23 17:35:56
+|_  start_date: 1601-01-01 09:18:59
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.19 ms 10.61.7.21
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 33.15 seconds
+root@kali:/usr/share/metasploit-framework/tools/exploit#
+
+・Metasploitにおけるデータベース利用
+metasploitはMySQLとpostgreSQLに対応済み。
+とりあえずpostgreSQLにmsfbookというDBを作成して接続してみる。
+msf > db_connect postgres@127.0.0.1/msfbook
+[-] postgresql already connected to msf
+[-] Run db_disconnect first if you wish to connect to a different database
+msf > db_status
+[*] postgresql connected to msf
+なんか既に接続されてるっぽいからそのまま。
+
+・Nmapの結果をインポート
+nmapで-oX オプションをつけるとXMLでエクスポートされるのでそれをインポートする。
+msf > db_status
+[*] postgresql connected to msf
+msf > db_import Subnet1.xml
+[*] Importing 'Nmap XML' data
+[*] Import: Parsing with 'Nokogiri v1.8.1'
+[*] Importing host 10.61.7.21
+[*] Successfully imported /usr/share/metasploit-framework/tools/exploit/Subnet1.xml
+msf > hosts -c address
+
+Hosts
+=====
+
+address
+-------
+10.61.7.21
+
+msf >
+アドレスが表示されれば問題なくインポートできていることになる。

