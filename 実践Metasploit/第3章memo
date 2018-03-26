@@ -148,3 +148,163 @@ address
 
 msf >
 アドレスが表示されれば問題なくインポートできていることになる。
+
+・高度なNmapスキャン:TCPアイドルスキャン
+TCPアイドルスキャンはネットワークの別のホストのIPアドレスをスプーフィングすることで
+ターゲットのステルススキャンを可能にする。
+このスキャンを行うにはIPヘッダのIdentification（パケットの順番を追跡するのに用いられるフィールド）
+を元に通信がアイドル状態のホストを見つける必要がある。
+OSによっては順に増えていくので次の値の予測が容易。そのためアイドル状態のシステムであれば次のIPIDを
+予測することが可能。
+しかしアイドル状態のホストのアドレスをスプーフィング（なりすまし）しターゲットの開放ポートにSYNを送ると
+IPIDを増加させてSYN/ACKがきてまたアイドル状態のホストでIPIDを増加させた上でRST/ACKが送信されて
+IPIDの値が予測とずれる。
+もしターゲットのポートが開いていなければターゲットからアイドル状態のホストにはRST/ACKが
+送信されられるが、このときはアイドル状態のホストから何も送信されないのでIPIDは増加しない。
+それで開放ポートが分かる。
+詳細は以下URLを参照
+https://www.rapid7.com/db/modules/auxiliary/scanner/ip/ipidseq
+
+とりあえずオプション確認
+msf > use auxiliary/scanner/ip/ipidseq
+msf auxiliary(scanner/ip/ipidseq) > show options
+
+Module options (auxiliary/scanner/ip/ipidseq):
+
+   Name       Current Setting  Required  Description
+   ----       ---------------  --------  -----------
+   INTERFACE                   no        The name of the interface
+   RHOSTS                      yes       The target address range or CIDR identifier
+   RPORT      80               yes       The target port
+   SNAPLEN    65535            yes       The number of bytes to capture
+   THREADS    1                yes       The number of concurrent threads
+   TIMEOUT    500              yes       The reply read timeout in milliseconds
+
+msf auxiliary(scanner/ip/ipidseq) >
+
+このオプションの中で重要なのはIP範囲での指定、CIDRでの指定、カンマ区切りでの複数指定
+ホストを1行に1つ記載したファイルでの指定などが可能であるということ。
+次にスレッドで同時起動スレッドの値を指定できる。
+この値を上げるとスキャン速度は上がるがWindowsで実行する場合は16以上、
+Unix系OSでは128以上にしないこと。
+まずは実行してみる。
+msf auxiliary(scanner/ip/ipidseq) > set RHOSTS 10.61.7.10-10.61.7.25
+RHOSTS => 10.61.7.10-10.61.7.25
+msf auxiliary(scanner/ip/ipidseq) > set THREADS 20
+THREADS => 20
+msf auxiliary(scanner/ip/ipidseq) > run
+
+[*] 10.61.7.16's IPID sequence class: Unknown
+[*] 10.61.7.11's IPID sequence class: All zeros
+[*] 10.61.7.15's IPID sequence class: Incremental!
+[*] 10.61.7.13's IPID sequence class: Unknown
+[*] 10.61.7.12's IPID sequence class: All zeros
+[*] 10.61.7.21's IPID sequence class: Incremental!
+[*] Scanned  7 of 16 hosts (43% complete)
+[*] Scanned 15 of 16 hosts (93% complete)
+[*] Scanned 16 of 16 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/ip/ipidseq) >
+結果から10.61.7.15とか10.61.7.21がアイドルスキャンに利用できそう。
+
+21を利用して15に対しnmapを実行してみる。
+msf auxiliary(scanner/ip/ipidseq) > nmap -Pn -sI 10.61.7.21 10.61.7.15
+[*] exec: nmap -Pn -sI 10.61.7.21 10.61.7.15
+
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-03-26 17:10 JST
+Idle scan using zombie 10.61.7.21 (10.61.7.21:80); Class: Incremental
+Nmap scan report for 10.61.7.15
+Host is up (0.035s latency).
+Not shown: 998 closed|filtered ports
+PORT     STATE SERVICE
+80/tcp   open  http
+3389/tcp open  ms-wbt-server
+MAC Address: 00:0C:29:0B:2A:B0 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 5.82 seconds
+msf auxiliary(scanner/ip/ipidseq) >
+こうすることでターゲットとするシステムにパケットを送信せず開いているポートを知ることが出来る。
+
+・msfconsoleからnmapを実行
+nmapとMetasploitを繋げてみる。
+msf > db_nmap -sS -A 10.61.7.21
+[*] Nmap: Starting Nmap 7.60 ( https://nmap.org ) at 2018-03-26 17:16 JST
+[*] Nmap: Nmap scan report for 10.61.7.21
+[*] Nmap: Host is up (0.00020s latency).
+[*] Nmap: Not shown: 996 closed ports
+[*] Nmap: PORT     STATE SERVICE       VERSION
+[*] Nmap: 135/tcp  open  msrpc         Microsoft Windows RPC
+[*] Nmap: 139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+[*] Nmap: 445/tcp  open  microsoft-ds?
+[*] Nmap: 3389/tcp open  ms-wbt-server Microsoft Terminal Services
+[*] Nmap: | ssl-cert: Subject: commonName=DESKTOP-RS9VLQ2
+[*] Nmap: | Not valid before: 2018-03-11T15:12:01
+[*] Nmap: |_Not valid after:  2018-09-10T15:12:01
+[*] Nmap: |_ssl-date: 2018-03-26T08:16:56+00:00; -1s from scanner time.
+[*] Nmap: MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+[*] Nmap: No exact OS matches for host (If you know what OS is running on it, see https://nmap.org/submit/ ).
+[*] Nmap: TCP/IP fingerprint:
+[*] Nmap: OS:SCAN(V=7.60%E=4%D=3/26%OT=135%CT=1%CU=36420%PV=Y%DS=1%DC=D%G=Y%M=000C29%
+[*] Nmap: OS:TM=5AB8AC7E%P=x86_64-pc-linux-gnu)SEQ(SP=107%GCD=1%ISR=10C%TI=I%CI=I%II=
+[*] Nmap: OS:I%SS=S%TS=U)OPS(O1=M5B4NW8NNS%O2=M5B4NW8NNS%O3=M5B4NW8%O4=M5B4NW8NNS%O5=
+[*] Nmap: OS:M5B4NW8NNS%O6=M5B4NNS)WIN(W1=FFFF%W2=FFFF%W3=FFFF%W4=FFFF%W5=FFFF%W6=FF7
+[*] Nmap: OS:0)ECN(R=Y%DF=Y%T=80%W=FFFF%O=M5B4NW8NNS%CC=N%Q=)T1(R=Y%DF=Y%T=80%S=O%A=S
+[*] Nmap: OS:+%F=AS%RD=0%Q=)T2(R=Y%DF=Y%T=80%W=0%S=Z%A=S%F=AR%O=%RD=0%Q=)T3(R=Y%DF=Y%
+[*] Nmap: OS:T=80%W=0%S=Z%A=O%F=AR%O=%RD=0%Q=)T4(R=Y%DF=Y%T=80%W=0%S=A%A=O%F=R%O=%RD=
+[*] Nmap: OS:0%Q=)T5(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)T6(R=Y%DF=Y%T=80%W=0%
+[*] Nmap: OS:S=A%A=O%F=R%O=%RD=0%Q=)T7(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)U1(
+[*] Nmap: OS:R=Y%DF=N%T=80%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%RUD=G)IE(R=Y%DFI=
+[*] Nmap: OS:N%T=80%CD=Z)
+[*] Nmap: Network Distance: 1 hop
+[*] Nmap: Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+[*] Nmap: Host script results:
+[*] Nmap: |_clock-skew: mean: -1s, deviation: 0s, median: -1s
+[*] Nmap: |_nbstat: NetBIOS name: DESKTOP-RS9VLQ2, NetBIOS user: <unknown>, NetBIOS MAC: 00:0c:29:cc:d4:e2 (VMware)
+[*] Nmap: | smb2-security-mode:
+[*] Nmap: |   2.02:
+[*] Nmap: |_    Message signing enabled but not required
+[*] Nmap: | smb2-time:
+[*] Nmap: |   date: 2018-03-26 17:16:57
+[*] Nmap: |_  start_date: 1601-01-01 09:18:59
+[*] Nmap: TRACEROUTE
+[*] Nmap: HOP RTT     ADDRESS
+[*] Nmap: 1   0.20 ms 10.61.7.21
+[*] Nmap: OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+[*] Nmap: Nmap done: 1 IP address (1 host up) scanned in 33.16 seconds
+msf > services
+
+Services
+========
+
+host        port  proto  name           state  info
+----        ----  -----  ----           -----  ----
+10.61.7.21  135   tcp    msrpc          open   Microsoft Windows RPC
+10.61.7.21  139   tcp    netbios-ssn    open   Microsoft Windows netbios-ssn
+10.61.7.21  445   tcp    microsoft-ds   open
+10.61.7.21  3389  tcp    ms-wbt-server  open   Microsoft Terminal Services
+
+msf >
+DB書き込みOK
+
+・Metasploitを使ったポートスキャン
+metasploitのauxiliaryモジュールはサードパーティのスキャナだけでなくFrameworkに直接
+統合可能ないくつかのポートスキャンがある。
+これはピポッティングというプロセスで内部に繋がったシステムを介し普通はアクセスできないシステムへの通信を可能にする。
+例えばNATを使ったシステムに入る場合、外から直接アクセスは出来ない。
+ただしMetasploitを使うことで侵害した内部システムを使って内部との通信が可能になるかもしれない。
+実行結果。
+msf auxiliary(scanner/portscan/syn) > set RHOSTS 10.61.7.11
+RHOSTS => 10.61.7.11
+msf auxiliary(scanner/portscan/syn) > set THREADS 50
+THREADS => 50
+msf auxiliary(scanner/portscan/syn) > run
+
+[+]  TCP OPEN 10.61.7.11:22
+[+]  TCP OPEN 10.61.7.11:80
+[+]  TCP OPEN 10.61.7.11:111
+[+]  TCP OPEN 10.61.7.11:3306
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/portscan/syn) >
+長すぎる。。。
