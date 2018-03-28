@@ -1,0 +1,51 @@
+4章　脆弱性スキャン
+脆弱性スキャナはコンピュータやシステムなどの弱点を探すように設計された自動プログラム。
+特定のネットワークプローブを送ったところでOSによって応答が異なる。
+こういった特有の応答を元にOSのバージョンとバッチレベルを判断する。
+一般的に脆弱性スキャナは隠れて行うペネトレーションテストの場合、
+ネットワーク帯域が大幅に増えるのでやらない。
+
+・基本的な脆弱性スキャン
+例えばバナーを取得する場合。ちなみにバナーを取得することをバナーグランビングと呼ぶ。
+結果は以下の通り。
+Apacheの場合は以下。
+root@kali:/usr/share/metasploit-framework/modules/auxiliary/scanner# nc 10.61.7.11 80
+GET HTTP 1/1
+HTTP/1.1 400 Bad Request
+Date: Wed, 28 Mar 2018 12:51:55 GMT
+Server: Apache/2.2.15 (CentOS)
+Content-Length: 301
+Connection: close
+Content-Type: text/html; charset=iso-8859-1
+
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>400 Bad Request</title>
+</head><body>
+<h1>Bad Request</h1>
+<p>Your browser sent a request that this server could not understand.<br />
+</p>
+<hr>
+<address>Apache/2.2.15 (CentOS) Server at 127.0.0.1 Port 80</address>
+</body></html>
+
+IISの場合は以下
+root@kali:/usr/share/metasploit-framework/modules/auxiliary/scanner# nc 10.61.7.15 80
+GET HTTP 1/1
+HTTP/1.1 400 Bad Request
+Content-Type: text/html; charset=us-ascii
+Server: Microsoft-HTTPAPI/2.0
+Date: Wed, 28 Mar 2018 12:53:17 GMT
+Connection: close
+Content-Length: 324
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN""http://www.w3.org/TR/html4/strict.dtd">
+<HTML><HEAD><TITLE>Bad Request</TITLE>
+<META HTTP-EQUIV="Content-Type" Content="text/html; charset=us-ascii"></HEAD>
+<BODY><h2>Bad Request - Invalid URL</h2>
+<hr><p>HTTP Error 400. The request URL is invalid.</p>
+</BODY></HTML>
+root@kali:/usr/share/metasploit-framework/modules/auxiliary/scanner#
+
+こういった情報を元に脆弱性スキャナを利用して脆弱性をスキャンしていく。
+脆弱性スキャナにはNeXpose、Nessusなどのものが存在する。

@@ -308,3 +308,117 @@ msf auxiliary(scanner/portscan/syn) > run
 [*] Auxiliary module execution completed
 msf auxiliary(scanner/portscan/syn) >
 長すぎる。。。
+
+・ターゲットスキャン
+ペネトレーションテスト実施時、簡単に侵入できる方法を探すのは恥ずかしいことではない。
+ターゲットスキャンでエクスプロイトできることが知られていてターゲットのネットワークに
+簡単に接続できるような方法をつかうのは常套手段。
+
+・SMBスキャン
+smb_versionモジュールを使ってネットワークを探りWindowsのバージョンを調べることが出来る。
+msf auxiliary(scanner/smb/smb_version) > set RHOSTS 10.61.7.21
+RHOSTS => 10.61.7.21
+msf auxiliary(scanner/smb/smb_version) > run
+
+[*] 10.61.7.21:445        - Host could not be identified:  ()
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/smb/smb_version) >
+Windows10相手だとバージョンは取れなかった。
+色々調べてみると取れているパターンもあるので原因不明。
+
+sf auxiliary(scanner/smb/smb_version) > hosts -c address,os_flavor,svcs,vulns,workspace
+
+Hosts
+=====
+
+address     os_flavor  svcs  vulns  workspace
+-------     ---------  ----  -----  ---------
+10.61.7.11             4     0      default
+10.61.7.12             0     0      default
+10.61.7.13             0     0      default
+10.61.7.15             0     0      default
+10.61.7.16             0     0      default
+10.61.7.21             4     0      default
+ホストの登録情報が見れる。osが判明すればos_flavorにOS情報が記載される。
+
+・設定に問題があるMSSQLServerの探索
+設定に問題があるMSSQLはターゲットとなるネットワークに侵入する糸口になることが多い。
+SQLServerはインストールされると1433で待ちうけする。
+動的な場合はUDPパケットを送って待ちうけポートを把握する。
+msf > use auxiliary/scanner/mssql/mssql_ping
+msf auxiliary(scanner/mssql/mssql_ping) > set RHOSTS 10.61.7.21
+RHOSTS => 10.61.7.21
+msf auxiliary(scanner/mssql/mssql_ping) > run
+
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/mssql/mssql_ping) >
+バージョン表示されず
+
+・SSHサーバースキャン
+スキャンの最中にSSHを利用しているマシンに遭遇したらば0ジョンを確認する。
+バージョンはssh_versionモジュールで確認可能。
+msf auxiliary(scanner/mssql/mssql_ping) > use auxiliary/scanner/ssh/ssh_version
+msf auxiliary(scanner/ssh/ssh_version) > set RHOSTS 10.61.7.11
+RHOSTS => 10.61.7.11
+msf auxiliary(scanner/ssh/ssh_version) > run
+
+[+] 10.61.7.11:22         - SSH server version: SSH-2.0-OpenSSH_5.3 ( service.version=5.3 service.vendor=OpenBSD service.family=OpenSSH service.product=OpenSSH service.protocol=ssh fingerprint_db=ssh.banner )
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/ssh/ssh_version) >
+
+FTPスキャン
+以下のコマンドでバージョンチェックが可能
+msf > use auxiliary/scanner/ftp/ftp_version
+msf auxiliary(scanner/ftp/ftp_version) > set RHOSTS 10.61.7.11
+RHOSTS => 10.61.7.11
+msf auxiliary(scanner/ftp/ftp_version) > run
+
+[+] 10.61.7.11:21         - FTP Banner: '220 (vsFTPd 2.2.2)\x0d\x0a'
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/ftp/ftp_version) >
+また以下のコマンドで匿名ユーザが有効になっているかチェックできる。
+msf auxiliary(scanner/ftp/ftp_version) > use auxiliary/scanner/ftp/anonymous
+msf auxiliary(scanner/ftp/anonymous) > set RHOSTS 10.61.7.11
+RHOSTS => 10.61.7.11
+msf auxiliary(scanner/ftp/anonymous) > run
+
+[+] 10.61.7.11:21         - 10.61.7.11:21 - Anonymous READ (220 (vsFTPd 2.2.2))
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/ftp/anonymous) >
+今回はREADのみなので読み込みが可能。書き込み可能な場合はWRITEが表示される。
+
+・SNMPスイープ
+SNMPで取得している値をMetasploitでも取得することが出来る。
+コミュニティ文字列を特定する必要はある。コミュニティ文字列を特定できれば大量の情報を取得できる。
+そもそもSNMPv1やv2は欠陥のあるプロトコル。使うならv3。
+以下コマンドでコミュニティ文字列を辞書アタックで見つけてくれる。
+msf auxiliary(scanner/ftp/anonymous) > use auxiliary/scanner/snmp/snmp_login
+msf auxiliary(scanner/snmp/snmp_login) > set RHOSTS 10.61.7.11
+RHOSTS => 10.61.7.11
+msf auxiliary(scanner/snmp/snmp_login) > set THREADS 50
+THREADS => 50
+msf auxiliary(scanner/snmp/snmp_login) > run
+
+[+] 10.61.7.11:161 - Login Successful: public (Access level: read-only); Proof (sysDescr.0): Linux nextcloud-demo01 2.6.32-696.20.1.el6.x86_64 #1 SMP Fri Jan 26 17:51:45 UTC 2018 x86_64
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/snmp/snmp_login) >
+今回の場合はpublic。工場出荷状態のままにされたNW機器とかは多い。
+
+・カスタムスキャナの作成
+metasploitにはカスタムスキャナを作成するための部品が数多く用意されている。
+FrameworkにはTCPやSMB向けのエクスプロイトミックスインなど色々なミックスインが存在している。
+ミックスイン＝すでに設定され事前に定義された関数と関数呼び出し。
+とりあえずRubyでデフォルト12345ポートに接続し接続時に「HELLO SERVER」と送信するものを作成する。
+作成したものは以下のディレクトリに配置した。
+/usr/share/metasploit-framework/modules/auxiliary/scanner/custom
+metasploitでは保存先が結構重要。
+そして動作しないものはそもそも読み込んでくれない仕様っぽい。
+
+この段階での主な目的は攻撃する組織とそのときの痕跡について知ること。
+作業がどこであろうと目標は常に同じ。
