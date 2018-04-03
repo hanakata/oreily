@@ -49,3 +49,201 @@ root@kali:/usr/share/metasploit-framework/modules/auxiliary/scanner#
 
 こういった情報を元に脆弱性スキャナを利用して脆弱性をスキャンしていく。
 脆弱性スキャナにはNeXpose、Nessusなどのものが存在する。
+
+NeXposeのインストール
+CLIで起動したらXでこけた。-cつけたらコマンドラインになるらしい。
+https://blog.rapid7.com/2014/06/11/kali-for-ya/
+DBのアクセス用ポートは54321とかにしたほうがいいらしい。5432だと既存で入っているやつとぶつかる。
+https://localhost:3780
+にアクセス。
+初期設定（自動）が恐ろしく時間かかる。事前にアクティベーションキーは用意しておくこと。
+スペックは2コア、4GBぐらいじゃないと動かない。
+メニューはそれぞれ
+Assets・・・スキャン後ネットワーク上にあるコンピュータとその他の機器の詳細を表示
+Vulnerabilities・・・脆弱性の詳細
+Policies・・・ポリシーチェック
+Report・・・生成された脆弱性スキャンレポート表示
+Adminisitration・・・オプションの設定
+脆弱性スキャンを実行するまえにサイトを作成する必要がある。
+サイトとは特定のサブネット、IPなどをまとめた論理的集合のこと
+作成方法はCreateからsiteを選んでAssetsを選択しIPを入力
+スキャンを実行すると対象機器に対しスキャンを実行する。スキャン実行後、レポートが作成できる。
+レポートをMetasploit Frameworkにインポート可能
+
+・MSFconsole内でNeXposeを実行
+metasploit上でNeXposeを実行できる。
+msf > load nexpose
+
+ ???   ??            ???  ???
+ ???   ??             ?? ???
+ ????  ??   ??????     ????    ???????    ??????   ????????   ??????
+ ?? ?? ??  ????????     ??     ???  ???  ???  ???  ?????? ?  ????????
+ ??  ????  ????????    ????    ??    ??  ??    ??   ???????  ????????
+ ??   ???  ????????   ??  ??   ????????  ????????  ????????  ????????
+ ??   ???    ?????   ???  ???  ?? ???      ????     ??????     ?????
+                               ??
+
+[*] Nexpose integration has been activated
+[*] Successfully loaded plugin: nexpose
+msf >
+以下のファイルを実行するとWeb UIでなくても起動することは出来る。
+/opt/rapid7/nexpose/nsc/nsc.sh
+ただし時間はかなりかかる。モジュール読み込みっぽい。
+また外との通信は出来る必要がある。脆弱性情報を更新してるっぽい。
+見つかる脆弱性は直接nexposeを実行したときよりは少ない。ただ手軽。
+
+・Nessusでのスキャン
+これも脆弱性スキャンのひとつ。
+ペネトレーションテストの初期段階では次の攻撃に受けた細かい調整に使えるツールが多ければ多いほど良い。
+
+まずはダウンロードしてインストールを行う。
+ダウンロードしてdpkgコマンドでインストール可能。
+root@kali:/usr/local/src# dpkg -i Nessus-7.0.3-debian6_amd64.deb
+Selecting previously unselected package nessus.
+(Reading database ... 322564 files and directories currently installed.)
+Preparing to unpack Nessus-7.0.3-debian6_amd64.deb ...
+Unpacking nessus (7.0.3) ...
+Setting up nessus (7.0.3) ...
+Unpacking Nessus Core Components...
+
+ - You can start Nessus by typing /etc/init.d/nessusd start
+ - Then go to https://kali:8834/ to configure your scanner
+
+Processing triggers for systemd (236-2) ...
+root@kali:/usr/local/src# service nessusd start
+root@kali:/usr/local/src# ps aux | grep nessus
+root     18863  0.0  0.0   6376   108 ?        S    17:39   0:00 /opt/nessus/sbin/nessus-service -D -q
+root     18864 75.9  1.5 216956 63560 ?        Sl   17:39   0:07 nessusd -q
+root     18912  0.0  0.0  12740   948 pts/0    S+   17:39   0:00 grep nessus
+
+後はWebコンソールで初期設定。
+https://localhost:8834
+プロキシ配下だとプロキシ設定はWebコンソール上でやる必要がある。
+Nessusのほうが早い。
+
+スキャンを作成して実行。実行後のファイルをnessusで出力してインポート可能。
+それ以外だとエラーになった。
+msf > hosts -c address,svcs,vulns
+
+Hosts
+=====
+
+address     svcs  vulns
+-------     ----  -----
+10.61.7.11  9     44
+
+NessusもMetasploitから実行できる。
+msf > load nessus
+[*] Nessus Bridge for Metasploit
+[*] Type nessus_help for a command listing
+[*] Successfully loaded plugin: Nessus
+msf > nessus_connect <ユーザ名>:<パスワード>@127.0.0.1:8834 ok
+[*] Connecting to https://127.0.0.1:8834/ as root
+[*] User root authenticated successfully.
+
+ポリシーを作成してUUIDを利用する。
+msf > nessus_policy_list
+Policy ID  Name  Policy UUID
+---------  ----  -----------
+7          work  ad629e16-03b6-8c1d-cef6-ef8c9dd3c658d24bd260ef5f9e66
+
+scanを作成するコマンドは以下
+nessus_scan_new <UUID of Policy> <Scan name> <Description> <Targets>
+
+以下のコマンドで実行
+nessus_scan_launch <ID>
+
+nessus_scan_listで状況が確認できる。
+msf > nessus_scan_list
+Scan ID  Name       Owner  Started  Status     Folder
+-------  ----       -----  -------  ------     ------
+5        The_Work   root            completed  3
+9        scan_test  root            running    3
+
+・特殊な脆弱性スキャナ
+特定の脆弱性についてスキャンを行いたい場合、Metasploitではauxiliaryモジュールが
+複数用意されている。
+SMBログイン検証
+例えばsmb_loginではログインの検証が行える。ただしこのスキャンはログインしようとしたログが
+残ることとなる。
+以下実行結果
+msf > use auxiliary/scanner/smb/smb_login
+msf auxiliary(scanner/smb/smb_login) > show options
+
+Module options (auxiliary/scanner/smb/smb_login):
+
+   Name              Current Setting  Required  Description
+   ----              ---------------  --------  -----------
+   ABORT_ON_LOCKOUT  false            yes       Abort the run when an account lockout is detected
+   BLANK_PASSWORDS   false            no        Try blank passwords for all users
+   BRUTEFORCE_SPEED  5                yes       How fast to bruteforce, from 0 to 5
+   DB_ALL_CREDS      false            no        Try each user/password couple stored in the current database
+   DB_ALL_PASS       false            no        Add all passwords in the current database to the list
+   DB_ALL_USERS      false            no        Add all users in the current database to the list
+   DETECT_ANY_AUTH   true             no        Enable detection of systems accepting any authentication
+   PASS_FILE                          no        File containing passwords, one per line
+   PRESERVE_DOMAINS  true             no        Respect a username that contains a domain name.
+   Proxies                            no        A proxy chain of format type:host:port[,type:host:port][...]
+   RECORD_GUEST      false            no        Record guest-privileged random logins to the database
+   RHOSTS                             yes       The target address range or CIDR identifier
+   RPORT             445              yes       The SMB service port (TCP)
+   SMBDomain         .                no        The Windows domain to use for authentication
+   SMBPass                            no        The password for the specified username
+   SMBUser                            no        The username to authenticate as
+   STOP_ON_SUCCESS   false            yes       Stop guessing when a credential works for a host
+   THREADS           1                yes       The number of concurrent threads
+   USERPASS_FILE                      no        File containing users and passwords separated by space, one pair per line
+   USER_AS_PASS      false            no        Try the username as the password for all users
+   USER_FILE                          no        File containing usernames, one per line
+   VERBOSE           true             yes       Whether to print output for all attempts
+
+msf auxiliary(scanner/smb/smb_login) > set RHOSTS 10.61.7.21
+RHOSTS => 10.61.7.21
+msf auxiliary(scanner/smb/smb_login) > set SMBUser <ユーザ名>
+SMBUser => testuser001
+msf auxiliary(scanner/smb/smb_login) > set SMBPass <パスワード>
+SMBPass => ppppp0!!
+msf auxiliary(scanner/smb/smb_login) > run
+
+[*] 10.61.7.21:445        - 10.61.7.21:445 - Starting SMB login bruteforce
+[*] 10.61.7.21:445        - 10.61.7.21:445 - This system does not accept authentication with any credentials, proceeding with brute force
+[+] 10.61.7.21:445        - 10.61.7.21:445 - Success: '.\<ユーザ名>:<パスワード>'
+[*] 10.61.7.21:445        - 10.61.7.21:445 - Domain is ignored for user <ユーザ名>
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/smb/smb_login) >
+これは成功のログ。
+大体の企業はイメージコピーが多いので管理者が共通のパターンは多い。
+
+・オープンなVNC認証のスキャン
+VNCはMicrosoft Remote Desktopと同じような方法でリモートに入れるので
+広くインストールされているものの一時的な利用になるため
+パッチもあてられずそのまま残っていることも多い。特に古いものだと空パスも多いので
+それを確認することが出来る。
+今どきという考え方は捨てた方が良い。数万ものシステムがあればどこかに潜んでいることがある。
+msf auxiliary(scanner/smb/smb_login) > use auxiliary/scanner/vnc/vnc_none_auth
+msf auxiliary(scanner/vnc/vnc_none_auth) > set RHOSTS 10.61.7.21
+RHOSTS => 10.61.7.21
+msf auxiliary(scanner/vnc/vnc_none_auth) > run
+
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+・オープンなX11サーバをスキャンする
+X11も意外とパッチがあたっていないことが多い。
+環境は特になにもいれてないので
+msf auxiliary(scanner/vnc/vnc_none_auth) > use auxiliary/scanner/x11/open_x11
+msf auxiliary(scanner/x11/open_x11) > set RHOSTS 10.61.7.11-10.61.7.16
+RHOSTS => 10.61.7.11-10.61.7.16
+msf auxiliary(scanner/x11/open_x11) > run
+
+[*] Scanned 1 of 6 hosts (16% complete)
+[*] Scanned 2 of 6 hosts (33% complete)
+[*] Scanned 3 of 6 hosts (50% complete)
+[*] Scanned 4 of 6 hosts (66% complete)
+[*] Scanned 5 of 6 hosts (83% complete)
+[*] Scanned 6 of 6 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/x11/open_x11) >
+
+このような脆弱性を見つけて何が出来るかはBack|Trackのxspyツールを使ってキーロギングなど。
+記録した情報の中にSSHとかrootとかある場合もあるのでこういった脆弱性を探すのは価値が高い。
