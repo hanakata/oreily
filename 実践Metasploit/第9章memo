@@ -1,0 +1,76 @@
+Metasploit Auxiliaryモジュール
+
+Metasploitの華といえばエクスプロイト
+ただ、エクスプロイトモジュールにないものはAuxiliaryモジュールに含まれることと定義されている。
+なのでポートスキャンやサービスフィンガープリントなどの調査ツールや
+ssh_loginモジュールを使った既知のユーザ名とパスワードのリストを読み込み
+ターゲットのネットワーク全体へのブルートフォースログインを試行できたりする。
+
+Metasploitで使用可能なauxiliaryモジュールを表示する場合以下のように実行する。
+msf > show auxiliary
+1000行近く表示される。
+使い方はuseの後に使いたいものを記載するだけ。
+msf > use auxiliary/scanner/http/webdav_scanner
+msf auxiliary(scanner/http/webdav_scanner) >
+msf auxiliary(scanner/http/webdav_scanner) >
+msf auxiliary(scanner/http/webdav_scanner) > info
+
+       Name: HTTP WebDAV Scanner
+     Module: auxiliary/scanner/http/webdav_scanner
+    License: Metasploit Framework License (BSD)
+       Rank: Normal
+
+Provided by:
+  et <et@metasploit.com>
+
+Basic options:
+  Name     Current Setting  Required  Description
+  ----     ---------------  --------  -----------
+  PATH     /                yes       Path to use
+  Proxies                   no        A proxy chain of format type:host:port[,type:host:port][...]
+  RHOSTS                    yes       The target address range or CIDR identifier
+  RPORT    80               yes       The target port (TCP)
+  SSL      false            no        Negotiate SSL/TLS for outgoing connections
+  THREADS  1                yes       The number of concurrent threads
+  VHOST                     no        HTTP server virtual host
+
+Description:
+  Detect webservers with WebDAV enabled
+
+msf auxiliary(scanner/http/webdav_scanner) >
+例えばwebdavのスキャナを使う場合。
+オプションを確認して必要な情報を用意する。
+
+auxiliaryモジュールの使用
+auxiliaryモジュールは色々な方法で利用できる。また合ったものが見つからなければ自分でも作成可能。
+遠隔からのペネトレーションテスト中、ネットワークをスキャンしたら
+Webサーバが大量に見つかった場合、楽にエクスプロイトを打ち込む方法を探すならscanner/httpが楽にたつ。
+使えるものを探すなら以下のような感じ。
+msf auxiliary(scanner/http/webdav_scanner) > search scanner/http
+かなりの数のモジュールが存在する。
+ひとまずWEBDAVのスキャンの場合。
+msf auxiliary(scanner/http/webdav_scanner) > use auxiliary/scanner/http/webdav_scanner
+msf auxiliary(scanner/http/webdav_scanner) > set RHOSTs 10.61.7.11-10.61.7.21
+RHOSTs => 10.61.7.11-10.61.7.21
+msf auxiliary(scanner/http/webdav_scanner) > run
+
+[*] 10.61.7.11 (Apache/2.2.15 (CentOS)) WebDAV disabled.
+[*] Scanned  2 of 11 hosts (18% complete)
+[*] Scanned  3 of 11 hosts (27% complete)
+[*] Scanned  4 of 11 hosts (36% complete)
+[*] 10.61.7.15 (Microsoft-IIS/10.0) WebDAV disabled.
+[*] Scanned  5 of 11 hosts (45% complete)
+[*] Scanned  6 of 11 hosts (54% complete)
+[*] Scanned  7 of 11 hosts (63% complete)
+[*] Scanned  8 of 11 hosts (72% complete)
+[*] Scanned  9 of 11 hosts (81% complete)
+[*] Scanned 10 of 11 hosts (90% complete)
+[*] 10.61.7.21 (Microsoft-IIS/10.0) WebDAV disabled.
+[*] Scanned 11 of 11 hosts (100% complete)
+[*] Auxiliary module execution completed
+msf auxiliary(scanner/http/webdav_scanner) >
+どこもDisabledにしているからこの結果。
+ただバージョンは普通に取れる印象。
+
+またrubyでauxiliaryは作成可能っぽい。
+なのでプログラムでやりたいことはそれなりに実装可能っぽい。
