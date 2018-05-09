@@ -1,0 +1,12 @@
+Meterpreterスクリプティング
+Metasploitのスクリプティング環境を利用することでMeterpreterに機能やオプションを追加できる。
+Meterpreterスクリプトはscripts/Meterpreterフォルダの中にある。
+例えばMeterpreterシェルを別のプロセスへ注入するmulti_meter_injectスクリプトの場合
+侵入後、run multi_meter_injectと入力することで利用可能。
+
+ペネトレーションテストを行っている最中、適切なスクリプトが見つからない場合、
+独自スクリプトを作成することが可能である。
+例えばirbを利用することが出来る。
+
+Meterpreterミックスインはよく利用される機能を1つにまとめたものである。
+irbからは使えず、Meterpreter上で動作するスクリプトでのみ利用できる。

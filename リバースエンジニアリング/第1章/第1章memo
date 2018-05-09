@@ -1,0 +1,110 @@
+開発環境のセットアップ
+
+組み合わせはPython2.5のEclipseだそうで。
+とりあえず先々のことも考えてPython3.6で実施する。
+OSも対象が古すぎるので64bitで実施する。
+Linuxの場合は通常入っているのが2系なのでそのまま実施。
+
+Pythonのctypesモジュールは最も強力なライブラリのひとつ。
+このライブラリがあれば動的リンクライブラリ中の関数を呼べる。
+またCの復号データ型を定義する機能やメモリ管理機能も豊富に提供されている。
+動的リンクライブラリはメインプロセスの実行ファイルに実行時にリンクされる
+コンパイル済みのバイナリで、WindowsではDLL、LinuxではSOと呼ばれる。
+それぞれのバイナリはメモリの実アドレスに解決される関数の名前を
+エクスポートすることで外部から関数を呼び出せる。
+ctypesでは動的リンクを呼び出すのに3つサポートされている。
+cdll()
+標準的なcdecl呼び出し規約で関数をエクスポートしているライブラリをロードする。
+windll()
+MS Win32ネイティブAPIの呼び出し規則であるstdcallで関数をエクスポートしているライブラリをロードする
+oledll()
+呼び出し方はwindllと同じだが戻りがWindowsのHRESULTエラーコードを返す事を想定している。
+
+本どおりにスクリプトを書いたら1文字目しか返さなかった。
+原因はPython2と3の違いで
+Python3はUnicode文字列で文字列を表現するので2バイト文字となり、必ず\0が入る。
+printfは\0を文字列の終端としてみるので必ず1文字しか表示しなくなる。
+その場合、以下のように記載する必要がある。
+from ctypes import *
+
+msvcrt = cdll.msvcrt
+message_string = "Hello world!\n"
+msvcrt.printf("Testing: %s".encode('ascii'), message_string.encode('ascii')) #ここ
+python2はASCII文字のため影響はない。
+
+呼び出し規約について
+呼び出し規約とは個々の関数を適切に呼び出す方法のこと
+例えばcdecl関数の場合、3つの引数を指定して呼び出すとそれぞれの引数をpushした後、
+スタックポインタの値を12バイト分増やす。これは3つの引数分のバイト数(4 * 3)を追加することで
+実質上、パラメータをクリアすることとなる。
+stdcallでは同様にそれぞれの引数をpushするが、クリアはしない。こういう違いがある。
+ただし戻り値はEAXレジスタに格納されるのは共通←重要！！
+
+Cのデータ型を使う
+PythonでCのデータ型を利用するのは簡単。
+以下URLで対応が確認できる。
+https://docs.python.jp/3/library/ctypes.html
+ctypesのデータ型は値を指定して初期化できるが型とサイズが適切でなければならない。
+
+実際にやってみると
+>>> c_int()
+c_long(0)
+>>> word = "Hello World"
+>>> c_char_p(word.encode('utf-8'))
+c_char_p(41807552)
+>>> c_char_p(word.encode('utf-8')).value
+b'Hello World'
+>>> c_ushort(-5)
+c_ushort(65531)
+>>> word = "love the python"
+>>> seitz = c_char_p(word.encode('utf-8'))
+>>> print(seitz)
+c_char_p(41806640)
+>>> print(seitz.value)
+b'love the python'
+>>>
+# 本ではc_char_pを実行するとそのまま表示されるように書かれているが
+# レジストリの値が表示されるっぽい
+c_char_pで設定された値を表示する場合はvalueを利用する必要がある。
+このような処理を「レジスタをデリファレンスする」という
+
+CやC++では関数がパラメータとしてポインタを受け取ることが出来る。
+そうすることでその関数ではメモリ中の該当する場所に書き込みを行ったり、
+サイズが大きくても受け取ることが出来る。
+こういった機能もctypesに備わっている。
+利用するにはbyref()という関数を利用する。
+
+構造体と共用体は重要なデータ型。
+構造体は変数をグループ化したもの。実際に定義する場合は以下。
+Cの場合
+struct beer_recipe{
+    int amt_barley;
+    int amt_water;
+}
+Pythonの場合
+class beer_recipe(Structure):
+  _fields = [
+      ("amt_barley",c_int)
+      ("amt_water",c_int)
+  ]
+これでCと互換性のある構造体をPythonでも定義できる。
+
+共用体も構造体ににているが全てのメンバ変数が同一のメモリ位置を占めることになる。
+こうすることで同一の値を別の型で表現できるようになる。
+実際指定するのは以下
+Cの場合
+union{
+    long barley_long;
+    int barley_int;
+    char barley_char[8];
+}barley_amount;
+
+Pythonの場合
+class barley_amount(Union):
+    _fields_ = [
+        ("barley_long",c_long),
+        ("barley_int",c_int),
+        ("barley_char",c_char * 8),
+    ]
+共用体barley_amountのメンバ変数barley_intに66という数字を入れた場合、
+その文字列表現はbarley_charを利用して行うことが出来る。
