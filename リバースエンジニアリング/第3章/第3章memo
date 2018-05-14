@@ -39,3 +39,52 @@ Python3の場合、CreateProcessWにするかCreateProcessAにして
 実行ファイルをasciiにエンコードすれば実行できる。
 そうしないと実行ファイルの値が判別つかず正しく指定していてもそのファイルがないという判断になる。
 Python2の場合はkernel32.CreateProcessAのままで良さそう。
+
+とりあえずPIDは表示された。
+これで実行してもGUIに電卓は表示されない。プロセスはデバッガが実行を続けるのを待ったまま
+画面上に描画を行っていないから。
+プロセスにアタッチするにはそのプロセスそのもののハンドルを取得しておくと楽。
+またプロセスのデバッグを始める前にそのプロセスにアクセスできる事を確認すると後が楽。
+それに使えるのはkernel32.dllにエクスポートされているOpenProcess()関数。
+プロトタイプは以下
+HANDLE WINAPI OpenProcess(
+    DWORD dwDesiredAccess,
+    BOOL bInheritHandle,
+    DWORD dwProcessId
+);
+dwDesiredAccessにはハンドルを取得しようとしているプロセスについてどういうタイプのアクセス権を要求するか指定。
+デバッグの場合にはここにPROCESS_ALL_ACCESSを設定する必要がある。
+InheritHandleはデバッグ目的であれば常にFalse
+dwProcessIdはハンドルを取得したいプロセスのPID。
+この関数は問題が起きなければ当該プロセスのハンドルを返す。
+プロセスにアタッチするには関数DebugActiveProcess()を使う。プロトタイプは以下。
+BOOL WINAPI DebugActiveProcess(
+    DWORD dwProcessId
+);
+この関数にはアタッチしたいプロセスのPIDを渡すだけ。
+そのプロセスへの相応のアクセス権があると判断したら対象プロセスは
+アタッチする側のプロセスがデバッグイベントを処理できる状態にあるものと判断し
+制御権をデバッガに渡す。
+デバッガはループ中でWaitForDebugEvent()を呼び出してイベントを捕捉する。
+そのプロトタイプは以下
+BOOL WINAPI WaitForDebugEvent(
+    LPDEBUG_EVENT lpDebugEvent,
+    DWORD dwMilliseconds
+);
+lpDebugEventはDEBUG_EVENT構造体へのポインタでデバッグイベントに関する情報が格納される。
+dwMillisecondsはWaitForDebugEvent呼び出しから戻らないようINFINITEを設定する。
+
+デバッガが捕捉する各イベントにはプロセスに処理を続行させる前になんらかのタイプのアクションを
+遂行するイベントハンドラが関連づけられるが、どのハンドラによる処理が完了したら当該プロセスに実行を再開させる。
+それに利用できる関数がContinueDebugEvent()
+BOOL WINAPI ContinueDebugEvent(
+    DWORD dwProcessId,
+    DWORD dwThreadId,
+    DWORD dwContinueStatus
+)
+dwProcessIdとdwThreadIdはデバッガがデバッグイベントを捕捉すると初期化されるDEBUG_EVENT構造体のフィールド。
+dwContinueStatusは実行を続ける（DBG_CONTINUE）あるいは例外の処理を続ける(DBG_EXCEPTION_NOT_HANDLED)
+といった事をプロセスに指示するもの。
+
+デバッガからプロセスを切り離すだけ。
+関数DebugActiveProcessStop()を呼び出す。この関数は切り離したいプロセスのPIDをパラメータとして受け取るだけ。
