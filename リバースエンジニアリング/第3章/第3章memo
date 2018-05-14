@@ -1,0 +1,41 @@
+Windowsデバッガの構築
+
+プロセスに対してデバッグを行うにはまず何らかの方法でデバッガをプロセスに関連づけ出来る必要がある。
+なので実行ファイルを開いて実行するか、実行中のプロセスに自身をアタッチする機能が必要。
+この方法がWindowsデバッグAPIで提供されている。
+プロセスを開くこととアタッチすることの違い
+プロセスを開く・・・そのプロセスが何らかのコードを実行するよりも前にプロセスを制御できる
+                  マルウェア解析に重宝
+アタッチする・・・既に実行されているプロセスに入り込むのでそのコードのスタートアップ部分はスキップして
+                関心の対象となっている特定のコード部分を解析できる。
+プロセスをデバッガの制御下で実行させるための第一の方法はデバッガそのものから実行ファイルを実行すること。
+Windowsでプロセスを生成するには関数CreateProcessA()を呼び出す。
+この関数に渡される特定のフラグを適切に設定することでプロセスが自動的にデバッグ向けに有効になる。
+CreateProcessA()の呼び出しは以下のような感じ。
+
+BOOL WINAPI CreateProcessA(
+    LPCSTR lpApplicationName,
+    LPTSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCTSTR lpCurrentDirectory,
+    LPSTARTUPINFO lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation
+);
+デバッガ制御下でプロセスを生成するうえで重要な意味を持つパラメータは以下
+lpApplicationName・・・実行させたい実行ファイルのパス
+lpCommandLine・・・実行ファイルに渡したいコマンドライン引数
+dwCreationFlags・・・デバッグ対象のプロセスとしてプロセスを起動すべき事を指示する特別な値
+以下2つは構造体へのポインタ
+lpStartupInfo
+lpProcessInformation
+
+テキストと違う部分。
+kernel32.CreateProcessAはASCIIっぽい。unicodeの場合はkernel32.CreateProcessWにすれば良い。
+Python3の場合、CreateProcessWにするかCreateProcessAにして
+実行ファイルをasciiにエンコードすれば実行できる。
+そうしないと実行ファイルの値が判別つかず正しく指定していてもそのファイルがないという判断になる。
+Python2の場合はkernel32.CreateProcessAのままで良さそう。
