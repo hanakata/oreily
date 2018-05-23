@@ -88,3 +88,317 @@ dwContinueStatusは実行を続ける（DBG_CONTINUE）あるいは例外の処�
 
 デバッガからプロセスを切り離すだけ。
 関数DebugActiveProcessStop()を呼び出す。この関数は切り離したいプロセスのPIDをパラメータとして受け取るだけ。
+my_debugger_defines.pyは筆者が作成したものを流用しろと書いてあったのでその通りにした。
+色々と宣言しているようなので必要に応じて読み解く。
+
+デバッガはレジスタの状態をいつでも捕捉できる必要がある。
+レジスタの状態を捕捉できれば例外発生時のスタックの状態や実行中の命令のアドレスなどの有益な情報が得られる。
+必要なのはデバッグ対象プロセス中の現時点で実行されているスレッドのハンドルを取得すること
+利用する関数はOpenThread()
+HANDLE WINAPI OpenThread(
+    DWORD dwDesiredAccess,
+    BOOL bInheritHandle,
+    DWORD dwThreadId
+)
+OpenProcessに似てる。
+違いはプロセス識別子ではなくスレッド識別子を渡す。
+必要なのは当該プロセス中で実行中のすべてのスレッドのリストを取得し対象のスレッドを選択し
+そのスレッドの有効なハンドルをOpenThreadで取得すること。
+
+レジスタの状態をプロセスから取得するためにはそのプロセスで実行中のスレッドを全て列挙する必要がある。
+スレッドとはプロセス中で実際に実行されているもの。
+スレッドを列挙するにはkernel32.dllからエクスポートされている
+CreateToolhelp32Snapshot()という関数を利用する。
+プロトタイプは以下。
+HANDLE WINAPI CreateToolhelp32Snapshot(
+    DWORD dwFlags,
+    DWORD th32ProcessID
+);
+dwFlagsはどういうタイプの情報(スレッド、プロセス、モジュール、ヒープ)を収集するかを指示。
+今回はTH32CS_SNAPSHOT(値は0x00000004)を指定。これでスレッドを収集できる。
+th32ProcessIDはスナップショットを取得する対象プロセスのPID。
+TH32CS_SNAPMODULE、TH32CS_SNAPMODULE32、TH32CS_SNAPHEAPLIST、TH43CS_SNAPALLを指定したときのみ有効。
+今回は必要なし、
+
+スナップショットからスレッドのリストを取得できていればスレッドの列挙が可能。
+そのための関数がThread32First()
+BOOL WINAPI Thread32First(
+    HANDLE hSnapshot,
+    LPTHREADENTRY32 lpte
+);
+hSnapshotではCreateToolhelp32Snapshotが返したハンドルを渡す。
+lpteはTHREADENTRY32構造体へのポインタ。
+呼び出しが問題なく完了した場合、最初に見つかったスレッドについての情報が設定される。
+その構造体は以下のように定義される。
+typedef struct THREADENTRY32(
+    DWORD dwSize;
+    DWORD cntUsage;
+    DWORD th32ThreadID;
+    DWORD th32OwnerThreadID;
+    LONG tpBasePri;
+    LONG tpDeltaPri;
+    DWORD dwFlags;
+)
+この構造体で中心となるのはdwSize、th32ThreadID、th32OwnerThreadID
+dwSizeはThread32Firstを呼び出す前に初期化が必要。
+th32ThreadIDが見つかったスレッドのTIDでOpenThread()へのdwThreadIdパラメータとして
+利用することが出来る。
+th32OwnerThreadIDはそのスレッドが属するプロセスのPID。
+生成、アタッチしたプロセスのPIDとth32OwnerThreadIDの値が一致すれば
+デバッグ対象プロセスに属するスレッドであると分かる。
+最初のスレッドで情報を取得してチェック終了したら
+関数Thread32Next()を呼び出してスナップショット中の次のスレッドのチェックを行う。
+チェックが終わるまでループでThread32Next()を呼び出し続ける。
+
+全レジスタの値を取得するためにはGetThreadContext()を呼び出す。
+関数SetThreadContext()を使えば取得したコンテキストデータを呼び出すことも可能。
+
+BOOL WINAPI GetThreadContext(
+    HANDLE hThread,
+    LPCONTEXT lpContext
+);
+
+BOOL WINAPI SetThreadContext(
+    HANDLE hThread,
+    LPCONTEXT lpContext
+);
+
+hThreadはOpenThread()が返すハンドルでlpContextはCONTEXT構造体へのポインタ。
+CONTEXT構造体には全てのレジスタ値が保存される。
+構造体は以下。
+typedef struct CONTEXT{
+    DWORD ContextFlags;
+    DWORD Dr0;
+    DWORD Dr1;
+    DWORD Dr2;
+    DWORD Dr3;
+    DWORD Dr6;
+    DWORD Dr7;
+    FLOATING_SAVE_AREA FloadSave;
+    DWORD SegGs;
+    DWORD SegFs;
+    DWORD SegEs;
+    DWORD SegDs;
+    DWORD Edi;
+    DWORD Esi;
+    DWORD Ebx;
+    DWORD Edx;
+    DWORD Ecx;
+    DWORD Eax;
+    DWORD Ebp;
+    DWORD Eip;
+    DWORD SegCs;
+    DWORD EFlags;
+    DWORD Esp;
+    DWORD SegSs;
+    BYTE ExtendedRegisters[MAXIMUM_SUPPORTED_EXTENSION];
+}
+
+64bitで作成しているので一部変更。
+class CONTEXT(Structure):
+    _fields_ = [
+
+        ("ContextFlags", DWORD),
+        ("Dr0", DWORD),
+        ("Dr1", DWORD),
+        ("Dr2", DWORD),
+        ("Dr3", DWORD),
+        ("Dr6", DWORD),
+        ("Dr7", DWORD),
+        ("FloatSave", FLOATING_SAVE_AREA),
+        ("SegGs", DWORD),
+        ("SegFs", DWORD),
+        ("SegEs", DWORD),
+        ("SegDs", DWORD),
+        ("Rdi", DWORD64),
+        ("Rsi", DWORD64),
+        ("Rbx", DWORD64),
+        ("Rdx", DWORD64),
+        ("Rcx", DWORD64),
+        ("Rax", DWORD64),
+        ("Rbp", DWORD64),
+        ("Rip", DWORD64),
+        ("SegCs", DWORD),
+        ("EFlags", DWORD),
+        ("Rsp", DWORD64),
+        ("SegSs", DWORD),
+        ("ExtendedRegisters", BYTE * 512),
+    ]
+
+print("[*] RIP: 0x{0:016x}".format(thread_context.Rip))
+
+if kernel32.RtlCaptureContext(byref(context)):
+これでレジストリの値は取得できているように見える。
+
+デバッグイベントに対してデバッガがアクションを取れるようにするには
+発生する可能性のある個々のイベントに対してハンドラを設定する必要がある。
+WaitForDebugEventはデバッグのイベントが発生するたびにDEBUG_EVENT構造体に情報を設定する。
+DEBUG_EVENT構造体は以下のように定義される
+typedef struct DEBUG_EVENT{
+    DWORD dwDebugEventCode;
+    DWORD dwProcessId;
+    DWORD dwThreadId;
+    union{
+        EXCEPTION_DEBUG_INFO Exception;
+        CREATE_THREAD_DEBUG_INFO CreateThread;
+        CREATE_PROCESS_DEBUG_INFO CreateProcessInfo;
+        EXIT_THREAD_DEBUG_INFO ExitThread;
+        EXIT_PROCESS_DEBUG_INFO ExitProcess;
+        LOAD_DLL_DEBUG_INFO LoadDll;
+        UNLOAD_DLL_DEBUG_INFO UnloadDll;
+        OUTPUT_DEBUG_STRING_INFO DebugString;
+        RIP_INFO RipInfo;
+    }u;
+}
+この構造体の中でdwDebugEventCodeは特に重要でどのようなタイプのイベントがWaitForDebugEventで
+捕捉されたかを表す。
+また共用体uの型と値もdwDebugEventCodeによって決まる。
+
+以下プロセスをアタッチしたあとのイベント情報取得結果
+c:\git\oreily\リバースエンジニアリング\第3章\Windows>python my_test.py
+Enter the PID of the Process to attach to:20056
+[*] Able to attach to the process
+Event Code: 3 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 2 Thread ID: 18368
+Event Code: 2 Thread ID: 21508
+Event Code: 2 Thread ID: 27376
+Event Code: 2 Thread ID: 10828
+Event Code: 2 Thread ID: 18024
+Event Code: 2 Thread ID: 12076
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 6 Thread ID: 3444
+Event Code: 2 Thread ID: 4228
+Event Code: 1 Thread ID: 4228
+Event Code: 4 Thread ID: 4228
+Event Code: 2 Thread ID: 3604
+
+まずCREATE_PROCESS_EVENT(0x3)が発生してLOAD_DLL_DEBUG_EVENTがかなり続き
+次にEXCEPTION_DEBUG_EVENT(0x2)が発生している。
+EXIT_THREAD_DEBUG_EVENT(0x4)はスレッドが実行を終了している事を示す
+例外イベントはかなり重要。なので追加。
+
+ソフトウェアブレークポイント例外ハンドラが発生したときのメモリの値が取得出来た。
+実装した EXCEPTION_GUARD_PAGEはメモリブレークポイント、
+EXCEPTION_SINGLE_STEPはハードウェアブレークポイントが発生したときに取得するもの。
+
+ソフトウェアブレークポイントを設定するにはプロセスのメモリ中読み書きを行える必要がある。
+そのためにReadProcessMemory()およびWriteProcessMemory()を利用する。
+これらのプロトタイプは以下。
+BOOL WINAPI ReadProcessMemory(
+    HANDLE hProcess,
+    LPCVOID lpBaseAddress,
+    LPVOID lpBuffer,
+    SIZE_T nSize,
+    SIZE_T* lpNumberObBytesRead
+)
+
+BOOL WINAPI WriteProcessMemory(
+    HANDLE hProcess,
+    LPCVOID lpBaseAddress,
+    LPVOID lpBuffer,
+    SIZE_T nSize,
+    SIZE_T* lpNumberObBytesWritten
+)
+受け取るパラメータはlpBaseAddressは読み取り、書き込みを開始すべきアドレス。
+lpBufferは読み書きするデータポインタ
+nSizeは読み書きしたい総バイト
+
+一般にブレークポイントはなんらかのタイプの関数呼び出しに対して設定するもの。
+関数の仮想アドレスを検出するための手段として、
+kernel32からGetProcAddress()が提供されている。この関数の第一パラメータで目的とする関数が
+含まれているモジュールへのハンドルを渡す必要がある。
+この渡すハンドルはGetModuleHandle関数で取得できる。
+それぞれのプロトタイプは以下の通り。
+FARPROC WINAPI GetProcAddress(
+    HMODULE hModule,
+    LPCSTR lpProcName
+);
+
+HMODULE WINAPI GetModuleHandle(
+    LPCSTR lpModuleName
+);
+
+ハードウェアブレークポイントはデバッグレジスタ中のビットの設定が必要になる。
+そのハードウェアブレークポイントを利用する際に重要なのは4つのデバッグレジスタのうち
+どれが空いていてどれが利用中かを管理すること。
+必ず空いているレジスタを利用すること。
+流れとしてまずプロセス中の全スレッドを列挙しそのそれぞれのコンテキストデータを取得する。
+その各コンテキストデータについてDR0からDR3までの空いているレジスタの
+1つに目的のブレークポイントアドレスを設定する。
+またDR7レジスタ中の相応のビットを操作することでブレークポイントを有効にし
+条件と長さも設定する。
+
+ブレークポイントを設定するための関数を定義した後はハードウェアブレークポイントによって
+起こされた例外を適切に処理できるようデバッグイベントループには気をつけること。
+
+のこりはメモリブレークポイント
+まず目的のメモリ領域について問い合わせを発行しベースアドレスを求める。
+ページサイズも調べ、そのページが保護ページとして振舞うようページのパーミッションを変更する。
+そのメモリ領域にCPUがアクセスしようとしたらEXCEPTION_GUARD_PAGEが起こる。
+扱う対象ページのサイズを適切に算出するためにOSへデフォルトのページサイズを問い合わせる。
+
+デフォルトサイズが求まればページのパーミッション操作が行える。
+まずは設定したいメモリブレークポイントのアドレスが属するページに関する情報を取得する。
+そのために関数VirtualQueryEx()を呼び出す。この関数を利用することで該当するページに関する情報を
+MEMORY_BASUC_INFORMATION構造体に取得する。
+関数と構造体の定義は以下。
+SIZE_T WINAPI VirtualQueryEx(
+    HANDLE hProcess,
+    LCPVOID lpAddress,
+    PMEMORY_BASIC_INFORMATION dwLength
+);
+
+pedef struct MEMORY_BASUC_INFORMATION{
+    PVOID BaseAddress;
+    PVOID AllocationBase;
+    DWORD AllocationProtect;
+    SIZE_T RegionSize;
+    DWORD State;
+    DWORD Protect;
+    DWORD Type;
+}
+この構造体に情報を取得できたらそのBaseAddressの値をページのパーミッションを設定する開始点として使う。
+実際にパーミッションを設定するのに使用する関数はVirtualProtectEx()。
+プロトタイプは以下
+BOOL WINAPI VirtualProtectEx(
+    HANDLE hProcess,
+    LPVOID lpAddress,
+    SIZE_T dwSize,
+    DWORD flNewProtect,
+    PDWORD lpflOldProtect
+);
+

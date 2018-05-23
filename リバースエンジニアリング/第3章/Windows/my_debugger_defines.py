@@ -4,6 +4,7 @@ from ctypes import *
 BYTE = c_ubyte
 WORD = c_ushort
 DWORD = c_ulong
+DWORD64 = c_ulonglong
 LPBYTE = POINTER(c_ubyte)
 LPTSTR = POINTER(c_char)
 HANDLE = c_void_p
@@ -209,17 +210,17 @@ class CONTEXT(Structure):
         ("SegFs", DWORD),
         ("SegEs", DWORD),
         ("SegDs", DWORD),
-        ("Edi", DWORD),
-        ("Esi", DWORD),
-        ("Ebx", DWORD),
-        ("Edx", DWORD),
-        ("Ecx", DWORD),
-        ("Eax", DWORD),
-        ("Ebp", DWORD),
-        ("Eip", DWORD),
+        ("Rdi", DWORD64),
+        ("Rsi", DWORD64),
+        ("Rbx", DWORD64),
+        ("Rdx", DWORD64),
+        ("Rcx", DWORD64),
+        ("Rax", DWORD64),
+        ("Rbp", DWORD64),
+        ("Rip", DWORD64),
         ("SegCs", DWORD),
         ("EFlags", DWORD),
-        ("Esp", DWORD),
+        ("Rsp", DWORD64),
         ("SegSs", DWORD),
         ("ExtendedRegisters", BYTE * 512),
     ]
