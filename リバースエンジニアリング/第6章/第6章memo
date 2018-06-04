@@ -1,0 +1,32 @@
+第6章 フック
+フックはプロセスを観察するための強力な技法でデータを監視または変更することを目的として処理の流れを変更する。
+フックはかなりの手法があるがとりあえず2つ。
+ソフトフック
+→ターゲットプロセスにアタッチしINT 3に対するブレークポイントハンドラを実装して実行フローを横取りするもの。
+ハードフック
+→アセンブリ言語で書かれたフックコードを実行するためにターゲットのアセンブリコード中にジャンプ命令をハードコードするもの。
+
+ソフトフックよりハードフックの方がターゲットプロセスに与える影響が少ない。
+Immunity DebuggerではFastLogHookと呼ばれるシンプルなオブジェクトが提供されている。
+FastLogHookオブジェクトはアセンブリスタブを自動的にセットアップする。
+フックをセットアップするコードは以下のような感じ
+imm = immlib.Debugger()
+fast = immlib.FastLogHook(imm)
+
+fast.LogFunction(address,num_arguments)
+fast.logRegister(register)
+fast.logDirectMemory(address)
+fast.logBaseDisplacement(register,offset)
+
+LogFunction()でオリジナルの命令を上書きするべきアドレスを指定する。
+ターゲット関数の出口点にフックを設定したい場合はnum_argumentsを使う。
+
+ログ出力を行うメソッドは以下
+fast.logRegister(register)
+→フックポイントに到達した時点の特定のレジスタ
+fast.logDirectMemory(address)
+フック時における一定のメモリオフセットをログ出力するために利用
+fast.logBaseDisplacement(register,offset)
+レジスタとオフセットの両方から受け取りスタックからパラメータをデリファレンスしたりする。
+
+

@@ -1,0 +1,99 @@
+Immunity Debugger
+Immunity DebuggerとはUIが充実しているだけでなくエクスプロイトの開発、脆弱性の検出、マルウェア解析に利用できる。
+とりあえずダウンロード。
+色々あったときにインストール済みだった。
+
+Immunity Debuggerの基礎
+5つの区画に分けられている。
+CPU区画はアセンブリコードが表示される。
+レジスタ区画は汎用レジスタを始めとした全てのCPUレジスタが表示される
+メモリダンプ区画は望みのメモリ位置の16進ダンプを見れる
+スタック区画は呼び出しスタックが表示される。シンボル情報を持つ関数のデコードしたパラメータも表示される。
+コマンドバーではコマンドを実行できる。
+
+Immunity Debuggerの中でPythonを実行するための主要方法はPycommandを利用すること。
+PycommandはImmunity Debuggerの内部でさまざまな処理を遂行するためのPythonスクリプト
+独自のPycommandを作るためのテンプレートは以下
+from immlib import *
+def main(args):
+    imm = Debugger()
+    return "[*] Pycommand Executed!"
+
+またPycommandにも3つの必須要件がある。
+1.main()関数が定義されていてそのmain関数がパラメータを1つ受け取ること。
+2.実行の終了時に文字列を返すこと
+Pycommandを実行したい場合はImmunity Debuggerのインストールディレクトリ内、Pycommandsというディレクトリに
+スクリプトを保存しその保存したスクリプトを実行するには
+!<スクリプト名>
+で実行できる。
+Immunity Debuggerには13のフックが用意さえている。
+・BpHook/LogBpHook
+ブレークポイントに達したときはこのタイプのフックを呼び出すことが出来る。
+どちらのタイプも同様に機能するがBpHookに達したときにはデバッグ対象プロセス実行が停止する。
+LogBpHookは実行が続けられる。
+・AllExceptHook
+プロセス中で発生した例外はどれもこのタイプのフックを起動する。
+・PostAnalysisHook
+ロードしたモジュールの解析が完了するとこのタイプのフックが起動する。
+解析の完了後、静的解析を自動的に行わせたい場合に利用
+・AccessViokationHook
+アクセス違反が発生するたびに起動。
+LoadDLLHook/UnloadDLLHook
+DLLがロード、アンロードするたびに起動
+CreateThreadHook/ExitThreadHook
+スレッドが新規作成、破棄されるたびに起動
+CreateProcessHook/ExitProcessHook
+ターゲットプロセスの始動/終了時に起動
+FastLogHook/STDCALLFastLogHook
+アセンブリスタブを利用しフック時の特定のレジスタ値やメモリ位置をログ出力できる
+小さなフックコードに実行権を移す。頻繁に呼び出される関数をフックするときに有用
+
+PyHookを定義するときのテンプレートは以下
+from immlib import *
+
+class MyHook(LogBpHook):
+    def __init__(self):
+        LogBpHook.__init__(self)
+    def run(regs):
+        # フックの起動時に実行
+
+クラスLogHookを継承し関数run()を必ず定義する。
+run()は唯一のパラメータとして全レジスタを受け取る。
+パラメータregsは辞書型なので以下のようにレジスタへアクセスできる。
+regs["EIP"]
+
+ソフトウェアシステムにおける脆弱性を発見することは頼りになるエクスプロイトを機能させるための出発点でしかない。
+EIPレジスタに対する制御を獲得した後はシェルコードに実行権を移す必要がある。
+そのためにはシェルコードを指しているレジスタまたはレジスタからのオフセットを調べ
+該当するアドレスに実行権を移す命令をその実行ファイルまたはロード済みのモジュールから見つけ出す。
+
+ターゲットシステムに攻撃用文字列を送り込もうとしてもシェルコード中で使うことの出来ない文字、
+例えばstrcpy()によるバッファオーバーフローを見つけたとしても
+シェルコードの中にヌル文字が含まれてはならない。
+strcpy()はNULL文字があるとデータのコピーを中止するため。
+なのでシェルコードの実行時にメモリ中でデコードされてから実行されるようにする。
+
+一般的にシェルコードが実行を開始するようにEIPを設定できると確認できたとしても
+シェルコードが自身の作業を終了する前にアクセス違反を起こしたり、ターゲットプロセスをクラッシュさせたり
+する場合には意図したとおりにシェルコードがメモリ中にコピーされていることを確認すべき。
+
+DEPはヒープやスタックといったメモリ領域でのコードの実行を防ぐためにWindowsで実装されている
+セキュリティ機能のこと。
+この機能によりエクスプロイトがシェルコードを実行出来なくなる可能性がある。
+ただDEPを無効にする有名な技法がある。
+DEPを無効化できるWindowsAPIはドキュメントに記載はないが存在する。
+NtSetInformationProcess()のプロトタイプは以下の通り
+NTSTATUS NtSetInformationProcess(
+    IN HANDLE hProcessHandle,
+    IN PROCESS_INFORMATION_CLASS ProcessInformationClass,
+    IN PVOID ProcessInformation,
+    IN ULONG ProcessInformationLength
+);
+プロセスのDEPを無効化するにはProcessInformationClassをProcessExecuteFlags(0x22)に
+ProcessInformationをMEM_EXECUTE_OPTION_ENABLE(0x2)に設定して
+NtSetInformationProcess()を呼び出す。
+
+マルウェアは感染および繁殖の面だけでなく解析からの防御も上手い。＝アンチデバッグ技法
+
+広く採用されているアンチデバッグ技法はIsDebuggerPresent関数を利用する。
+この関数は現行のプロセスにアタッチしていれば1、そうでなければ0を返す
