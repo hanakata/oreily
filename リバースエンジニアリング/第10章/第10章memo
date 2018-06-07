@@ -1,0 +1,51 @@
+第10章 Windowsドライバのファジング
+
+現在、Winodowsドライバへの攻撃が一般的なものになってきている。
+色々な脆弱性のあるドライバがローカルマシンにインストールされていることが分かれば
+そのドライバを利用してアクセスすることは容易。
+
+ドライバとやり取りするためにはユーザモードとカーネルモードの間の移行が必要になる。
+そのためにはIOCTLを使ってドライバに情報を渡す。
+IOCTLはユーザモードのサービスやアプリがカーネルのデバイスやコンポーネントにアクセスするための
+特殊なゲートウェイ。IOCTLハンドラの不安定な実装に漬け込むことで権限を拡大したり
+ターゲットシステムをクラッシュさせたり出来る。
+
+Windowsシステム上のほとんど全てのドライバはオペレーティングシステムに登録されており
+固有のデバイス名とそのドライバと通信するためのハンドルをユーザモードで取得できるようにする
+シンボリックリンクを持っている。
+このハンドルを取得するにはkernel32.dllからエクスポートされている
+CreateFileWを呼び出す。プロトタイプは以下
+HANDLE WINAPI CreateFileW(
+    LPCTSTR lpFileName,
+    DWORD   dwDesiredAccess,
+    DWORD   dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD   dwCreationDisposition,
+    DWORD   dwFlagsAndAttributes,
+    HANDLE  hTemplateFile
+);
+第一パラメータはハンドルを取得したいファイルもしくはデバイスの名前。
+dwDesiredAccessフラグではどのデバイスに対しての読み書き指定を行う。
+dwShareModeはハンドルを閉じるまで当該デバイスを共有できるかどうかのフラグ
+
+これでハンドルが取得できたらそれを利用してIOCTLにアクセスする。
+アクセスするにはDeviceIoControlを使う。
+プロトタイプは以下
+BOOL WINAPI DeviceIoControl(
+    HANDLE  hDevice,
+    DWORD   dwIoControlCode,
+    LPVOID  lpInBuffer,
+    DWORD   nInBufferSize,
+    LPVOID  lpOutBuffer,
+    DWORD   nOutBufferSize,
+    LPDWORD lpBytesReturned,
+    LPOVERLAPPED lpOverlapped
+);
+第一パラメータはCreateFileW関数が返してきたハンドル。
+dwIoControlCodeは目的のドライバに渡したいIOCTLのコード
+
+ターゲットのドライバに適用されるよりも前にDeviceIoControl呼び出しを捕捉するために
+Immunity Debuggerのフック機能を利用する。
+
+driverlibはドライバの中の貴重な情報を見つけ出す作業を自動化するためのライブラリ。
+Immunity Debuggerに含まれている。
